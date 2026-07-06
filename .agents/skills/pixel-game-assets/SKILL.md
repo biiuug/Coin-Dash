@@ -13,6 +13,8 @@ Use assets/knight-style-reference.gif as the primary style reference: compact he
 
 ## Asset Contract
 
+Asset categories include characters, enemies, buildings, cards, resources, relics, equipment, backgrounds, and UI icons.
+
 | Asset | Logical size |
 |---|---:|
 | Character frame | 64 by 96 |
