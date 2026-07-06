@@ -1,0 +1,4 @@
+interface:
+  display_name: "Pixel Game Assets"
+  short_description: "Consistent pixel art for this game"
+  default_prompt: "Use $pixel-game-assets to generate a game-ready pixel asset."
