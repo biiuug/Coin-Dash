@@ -10,7 +10,7 @@ $requiredPaths = @(
 
 foreach ($relativePath in $requiredPaths) {
     $fullPath = Join-Path $repoRoot $relativePath
-    if (-not (Test-Path -LiteralPath $fullPath)) {
+    if (-not (Test-Path -LiteralPath $fullPath -PathType Leaf)) {
         throw "Missing required pixel game assets skill path: $relativePath"
     }
 }
