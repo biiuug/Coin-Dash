@@ -143,7 +143,7 @@ Animation sheets use equal cells, a stable baseline, identical identity and scal
 Copy-Item -LiteralPath 'C:\Users\cynth\OneDrive\桌面\original-8b8b4deb9d26655bd3421d7e18189488.gif' -Destination '.agents\skills\pixel-game-assets\assets\knight-style-reference.gif'
 ```
 
-- [ ] **Step 4: Validate GREEN**
+- [ ] **Step 4: Validate the skill foundation and next RED state**
 
 Run:
 
@@ -152,7 +152,7 @@ powershell -ExecutionPolicy Bypass -File tests\validate_pixel_game_assets_skill.
 & 'C:\Users\cynth\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' 'C:\Users\cynth\.codex\skills\.system\skill-creator\scripts\quick_validate.py' .agents\skills\pixel-game-assets
 ```
 
-Expected: `PIXEL_GAME_ASSETS_SKILL_TEST_PASS` and `Skill is valid!`.
+Expected: the structural test now fails only because `scripts/finalize_pixel_sheet.py` is reserved for Task 3, while skill validation reports `Skill is valid!`. Task 3 completes GREEN.
 
 - [ ] **Step 5: Commit the skill foundation**
 
