@@ -8,7 +8,7 @@ import math
 import sys
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 
 
 KEY_THRESHOLD = 36
@@ -140,7 +140,11 @@ def finalize_sheet(
     if colors < 1 or colors > 256:
         raise ValidationError("colors must be between 1 and 256")
 
-    source = Image.open(input_path).convert("RGBA")
+    try:
+        with Image.open(input_path) as image:
+            source = image.convert("RGBA")
+    except (OSError, UnidentifiedImageError) as exc:
+        raise ValidationError(f"could not read input image: {exc}") from exc
     if source.width % frames != 0:
         raise ValidationError(f"source width {source.width} is not divisible by frame count {frames}")
 
@@ -158,8 +162,11 @@ def finalize_sheet(
     sheet = quantize_opaque_palette(sheet, colors)
     validate_sheet(sheet, frames, frame_width, frame_height, colors)
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    sheet.save(output_path)
+    try:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        sheet.save(output_path)
+    except (OSError, ValueError) as exc:
+        raise ValidationError(f"could not write output image: {exc}") from exc
 
 
 def build_parser() -> argparse.ArgumentParser:
