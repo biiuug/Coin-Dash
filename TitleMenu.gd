@@ -68,6 +68,7 @@ func _build_title_screen() -> void:
 	start.size = Vector2(390, 54)
 	start.pressed.connect(_on_start_pressed)
 	menu_panel.add_child(start)
+	start.grab_focus()
 
 	var save_hint := _label("Local expedition found" if FileAccess.file_exists(SAVE_PATH) else "A new local expedition will begin", 14, TEXT_MUTED)
 	save_hint.position = Vector2(40, 268)
@@ -80,6 +81,14 @@ func _build_title_screen() -> void:
 	quit.size = Vector2(180, 40)
 	quit.pressed.connect(get_tree().quit)
 	menu_panel.add_child(quit)
+	start.focus_neighbor_bottom = start.get_path_to(quit)
+	quit.focus_neighbor_top = quit.get_path_to(start)
+
+	var controls := _label("ENTER  Select    ARROWS  Navigate", 12, TEXT_MUTED)
+	controls.position = Vector2(40, 354)
+	controls.size = Vector2(390, 18)
+	controls.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	menu_panel.add_child(controls)
 
 	var version := _label("VERSION 1.0", 12, TEXT_MUTED)
 	version.position = Vector2(16, 584)
