@@ -901,6 +901,12 @@ func _build_records_tab() -> void:
 	summary.position = Vector2(790, 4)
 	summary.size = Vector2(270, 26)
 	content.add_child(summary)
+	if best_stage >= rules.MAX_STAGE:
+		var victory := _make_label("CROWN OF STARS DEFEATED  |  CAMPAIGN COMPLETE", 15, GOOD, HORIZONTAL_ALIGNMENT_CENTER)
+		victory.position = Vector2(330, 3)
+		victory.size = Vector2(450, 28)
+		victory.tooltip_text = "The full 120-stage campaign is complete. Continue farming regions to finish heroes, relics, records, and equipment."
+		content.add_child(victory)
 	var scroll := ScrollContainer.new()
 	scroll.position = Vector2(0, 42)
 	scroll.size = Vector2(1072, 458)
