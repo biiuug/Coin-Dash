@@ -13,12 +13,13 @@ const ACCENT := Color(0.78, 0.63, 0.32)
 const GOOD := Color(0.32, 0.78, 0.42)
 const BAD := Color(0.82, 0.24, 0.24)
 const BLUE := Color(0.32, 0.55, 0.92)
-const TAB_NAMES: Array[String] = ["Guide", "Battle", "Heroes", "Equipment", "Buildings", "Talents", "Stages", "Records"]
+const TAB_NAMES: Array[String] = ["Guide", "Battle", "Heroes", "Equipment", "Buildings", "Talents", "Stages", "Relics", "Records"]
 const CLASS_ATLAS_ORDER: Array[String] = ["warrior", "ranger", "cleric", "rogue", "mage", "paladin", "druid", "artificer", "necromancer", "monk"]
 const EQUIPMENT_ATLAS_SLOTS: Array[String] = ["weapon", "armor", "trinket"]
 const EQUIPMENT_ATLAS_RARITIES: Array[String] = ["Common", "Uncommon", "Rare", "Epic", "Legendary"]
 const TALENT_ATLAS_BRANCHES: Array[String] = ["Combat", "Economy", "Loot", "Automation", "Class"]
 const STAGE_ATLAS_REGIONS: Array[String] = ["Meadow Road", "Iron Mine", "Grave Ruins", "Ember Hollow", "Fallen Keep", "Frostmarch", "Sunken Vault", "Verdant Maze", "Clockwork City", "Crystal Expanse", "Void Frontier", "Starfall Spire"]
+const RELIC_ATLAS_ORDER: Array[String] = ["wayfarer_compass", "deepdelver_anvil", "grave_bell", "emberheart", "warden_sigil", "winter_fang", "tide_crown", "thorn_seed", "clockwork_heart", "prism_eye", "void_lantern", "star_crown"]
 const SAVE_PATH := "user://idle_hero_camp_save.json"
 const AUTOSAVE_INTERVAL := 8.0
 const OFFLINE_REWARD_CAP_SECONDS := 7200
@@ -31,6 +32,7 @@ var inventory: Array = []
 var buildings: Dictionary = {}
 var unlocked_talents: Array[String] = []
 var unlocked_achievements: Array[String] = []
+var owned_relics: Array[String] = []
 var battle_log: Array[String] = []
 
 var selected_tab: String = "Battle"
@@ -75,6 +77,7 @@ var equipment_icon_cache: Dictionary = {}
 var hero_icon_cache: Dictionary = {}
 var talent_icon_cache: Dictionary = {}
 var stage_icon_cache: Dictionary = {}
+var relic_icon_cache: Dictionary = {}
 
 var hero_texture: Texture2D
 var enemy_texture: Texture2D
@@ -84,6 +87,7 @@ var resource_texture: Texture2D
 var equipment_texture: Texture2D
 var talent_texture: Texture2D
 var stage_texture: Texture2D
+var relic_texture: Texture2D
 
 
 func _ready() -> void:
@@ -139,9 +143,12 @@ func _load_assets() -> void:
 	equipment_texture = _load_png_texture("res://assets/equipment/equipment-icons-v1.png")
 	talent_texture = _load_png_texture("res://assets/ui/talent-icons-v1.png")
 	stage_texture = _load_png_texture("res://assets/ui/stage-icons-v2.png")
+	relic_texture = _load_png_texture("res://assets/relics/relic-icons-v1.png")
 
 
 func _load_png_texture(path: String) -> Texture2D:
+	if not ResourceLoader.exists(path, "Texture2D"):
+		return null
 	var resource := ResourceLoader.load(path, "Texture2D")
 	return resource as Texture2D
 
@@ -244,6 +251,8 @@ func _refresh_ui() -> void:
 		_build_talents_tab()
 	elif selected_tab == "Stages":
 		_build_stages_tab()
+	elif selected_tab == "Relics":
+		_build_relics_tab()
 	else:
 		_build_records_tab()
 
@@ -419,7 +428,7 @@ func _draw_team_on_battlefield(parent: Control) -> void:
 			continue
 		var hero: Dictionary = heroes[index]
 		var x_pos := 78 + index * 86
-		var stats: Dictionary = rules.hero_stats(hero, inventory, buildings, unlocked_talents)
+		var stats: Dictionary = rules.hero_stats(hero, inventory, buildings, unlocked_talents, owned_relics)
 		var max_hp := float(hero.get("max_hp", stats["hp"]))
 		var hp := float(hero.get("hp", max_hp))
 		var name_label := _make_label(String(hero["name"]), 13, TEXT_MAIN, HORIZONTAL_ALIGNMENT_CENTER)
@@ -467,7 +476,7 @@ func _draw_team_status_panel(parent: Control, origin: Vector2) -> void:
 	var y := origin.y + 28
 	for index in range(min(slots, heroes.size())):
 		var hero: Dictionary = heroes[index]
-		var stats: Dictionary = rules.hero_stats(hero, inventory, buildings, unlocked_talents)
+		var stats: Dictionary = rules.hero_stats(hero, inventory, buildings, unlocked_talents, owned_relics)
 		var max_hp := float(hero.get("max_hp", stats["hp"]))
 		var hp := float(hero.get("hp", max_hp))
 		var portrait := TextureRect.new()
@@ -503,7 +512,7 @@ func _build_heroes_tab() -> void:
 		portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		portrait.texture = _hero_portrait_texture(hero)
-		portrait.tooltip_text = _hero_tooltip(hero, rules.hero_stats(hero, inventory, buildings, unlocked_talents))
+		portrait.tooltip_text = _hero_tooltip(hero, rules.hero_stats(hero, inventory, buildings, unlocked_talents, owned_relics))
 		list.add_child(portrait)
 		var button := _make_button("%s  Lv.%d" % [String(hero["name"]), int(hero["level"])], Vector2(188, 36), selected_hero == index)
 		button.position = Vector2(56, y)
@@ -513,7 +522,7 @@ func _build_heroes_tab() -> void:
 
 	var selected: Dictionary = heroes[selected_hero]
 	var class_data: Dictionary = rules.get_class_data(String(selected["class_id"]))
-	var stats: Dictionary = rules.hero_stats(selected, inventory, buildings, unlocked_talents)
+	var stats: Dictionary = rules.hero_stats(selected, inventory, buildings, unlocked_talents, owned_relics)
 	var title := _make_label("%s  |  %s Rank %d" % [String(selected["name"]), String(class_data["name"]), int(selected["rank"])], 24, ACCENT, HORIZONTAL_ALIGNMENT_LEFT)
 	title.position = Vector2(104, 18)
 	title.size = Vector2(500, 34)
@@ -689,7 +698,7 @@ func _build_equipment_tab() -> void:
 	var salvage := _make_button("Salvage", Vector2(180, 36), false, BAD)
 	salvage.position = Vector2(20, 270)
 	salvage.disabled = not can_salvage
-	salvage.tooltip_text = _format_cost(rules.salvage_value(selected, unlocked_talents), true) if can_salvage else "Unlock and unequip this item before salvaging it."
+	salvage.tooltip_text = _format_cost(rules.salvage_value(selected, unlocked_talents, owned_relics), true) if can_salvage else "Unlock and unequip this item before salvaging it."
 	salvage.pressed.connect(_on_salvage_item)
 	details.add_child(salvage)
 	var bulk_salvage := _make_button("Salvage Junk", Vector2(180, 36), false, BAD)
@@ -915,6 +924,46 @@ func _build_records_tab() -> void:
 		_add_reward_row(card, achievement["reward"], Vector2(320, 52), 2)
 
 
+func _build_relics_tab() -> void:
+	var title := _make_label("Region Relics", 24, ACCENT, HORIZONTAL_ALIGNMENT_LEFT)
+	title.position = Vector2(6, 0)
+	title.size = Vector2(320, 32)
+	content.add_child(title)
+	var summary := _make_label("%d / %d collected  |  Region capstone bosses award relics" % [owned_relics.size(), rules.RELICS.size()], 14, TEXT_MUTED, HORIZONTAL_ALIGNMENT_RIGHT)
+	summary.position = Vector2(470, 4)
+	summary.size = Vector2(590, 26)
+	content.add_child(summary)
+	for index in range(rules.RELICS.size()):
+		var relic: Dictionary = rules.RELICS[index]
+		var owned := owned_relics.has(String(relic["id"]))
+		var col := index % 3
+		var row := int(index / 3)
+		var card := _panel(Vector2(col * 356, 42 + row * 114), Vector2(340, 104))
+		content.add_child(card)
+		var icon := TextureRect.new()
+		icon.position = Vector2(12, 18)
+		icon.size = Vector2(64, 64)
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.texture = _relic_icon_texture(relic)
+		icon.modulate = Color.WHITE if owned else Color(0.20, 0.22, 0.24, 1.0)
+		icon.tooltip_text = String(relic["text"]) if owned else "Defeat the capstone boss of %s." % [String(relic["region"])]
+		card.add_child(icon)
+		var name_label := _make_label(String(relic["name"]) if owned else "Unknown Relic", 16, GOOD if owned else TEXT_MUTED, HORIZONTAL_ALIGNMENT_LEFT)
+		name_label.position = Vector2(88, 14)
+		name_label.size = Vector2(236, 24)
+		card.add_child(name_label)
+		var region_label := _make_label(String(relic["region"]), 12, ACCENT if owned else TEXT_MUTED, HORIZONTAL_ALIGNMENT_LEFT)
+		region_label.position = Vector2(88, 38)
+		region_label.size = Vector2(236, 20)
+		card.add_child(region_label)
+		var effect_label := _make_label(String(relic["text"]) if owned else "Capstone boss reward", 12, TEXT_MAIN if owned else TEXT_MUTED, HORIZONTAL_ALIGNMENT_LEFT)
+		effect_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		effect_label.position = Vector2(88, 60)
+		effect_label.size = Vector2(236, 36)
+		card.add_child(effect_label)
+
+
 func _tick_battle(delta: float) -> void:
 	if battle_paused:
 		return
@@ -936,10 +985,12 @@ func _tick_battle(delta: float) -> void:
 	var speed_bonus: float = float(_battle_speed()) * (1.0 + workshop_level * 0.06 + (0.08 if unlocked_talents.has("battle_rhythm") else 0.0))
 	var damage: float = 0.0
 	for hero in living:
-		var stats: Dictionary = rules.hero_stats(hero, inventory, buildings, unlocked_talents)
+		var stats: Dictionary = rules.hero_stats(hero, inventory, buildings, unlocked_talents, owned_relics)
 		damage += max(1.0, float(stats["atk"]) * float(stats["speed"]) * float(stats["skill_power"])) * delta * speed_bonus
 	if is_boss and unlocked_talents.has("boss_breaker"):
 		damage *= 1.15
+	if is_boss:
+		damage *= 1.0 + rules.relic_effect_total("boss_damage_pct", owned_relics)
 	enemy_hp -= damage
 	if damage > 0.1:
 		enemy_flash = 0.08
@@ -950,7 +1001,7 @@ func _tick_battle(delta: float) -> void:
 	var encounter_damage_multiplier := 1.8 if encounter == "Boss" else (1.35 if encounter == "Elite" else 1.0)
 	var enemy_damage: float = max(1.0, float(stage["enemy_atk"]) * delta * 0.36 * encounter_damage_multiplier)
 	for hero in living:
-		var stats: Dictionary = rules.hero_stats(hero, inventory, buildings, unlocked_talents)
+		var stats: Dictionary = rules.hero_stats(hero, inventory, buildings, unlocked_talents, owned_relics)
 		hero["hp"] = max(0.0, float(hero["hp"]) - max(0.2, enemy_damage - float(stats["def"]) * 0.012))
 	hero_flash = 0.05
 	_update_battle_widgets()
@@ -959,13 +1010,14 @@ func _tick_battle(delta: float) -> void:
 
 
 func _complete_wave() -> void:
-	var rewards: Dictionary = rules.wave_rewards(stage_index, current_wave, buildings, unlocked_talents)
+	var rewards: Dictionary = rules.wave_rewards(stage_index, current_wave, buildings, unlocked_talents, owned_relics)
 	_add_materials(rewards)
 	_add_log("Wave %d: %s" % [current_wave, _format_cost(rewards, true)])
 	for hero in _active_heroes():
 		var xp_gain := 8 + stage_index
 		if unlocked_talents.has("veteran_trainers"):
 			xp_gain = int(float(xp_gain) * 1.15)
+		xp_gain = int(float(xp_gain) * (1.0 + rules.relic_effect_total("xp_pct", owned_relics)))
 		var levels_gained: int = rules.grant_hero_xp(hero, xp_gain)
 		if levels_gained > 0:
 			_add_log("%s reached Lv.%d." % [String(hero["name"]), int(hero["level"])])
@@ -973,20 +1025,25 @@ func _complete_wave() -> void:
 	var boss_wave: bool = current_wave >= int(stage["wave_count"])
 	item_roll_counter += 1
 	if rules.should_drop_equipment(stage_index, current_wave, item_roll_counter):
-		var rarity_bonus: int = 12 if unlocked_talents.has("rare_find") else 0
+		var rarity_bonus: int = (12 if unlocked_talents.has("rare_find") else 0) + int(rules.relic_effect_total("rarity_bonus", owned_relics))
 		var item: Dictionary = rules.generate_equipment(stage_index, item_roll_counter, rarity_bonus)
 		if auto_salvage_junk and _is_low_rarity_item(item):
-			var salvage: Dictionary = rules.salvage_value(item, unlocked_talents)
+			var salvage: Dictionary = rules.salvage_value(item, unlocked_talents, owned_relics)
 			_add_materials(salvage)
 			_add_log("Auto junk: %s" % [_format_cost(salvage, true)])
 		elif inventory.size() >= rules.INVENTORY_CAP:
-			var overflow_salvage: Dictionary = rules.salvage_value(item, unlocked_talents)
+			var overflow_salvage: Dictionary = rules.salvage_value(item, unlocked_talents, owned_relics)
 			_add_materials(overflow_salvage)
 			_add_log("Pack full: %s salvaged." % [String(item["name"])])
 		else:
 			inventory.append(item)
 			_add_log("Gear: %s Lv.%d" % [String(item["name"]), int(item["level"])])
 	if boss_wave:
+		var relic: Dictionary = rules.relic_for_stage(stage_index)
+		if not relic.is_empty() and not owned_relics.has(String(relic["id"])):
+			owned_relics.append(String(relic["id"]))
+			_add_log("Relic found: %s" % [String(relic["name"])])
+			_spawn_float("Relic: %s" % [String(relic["name"])], ACCENT)
 		best_stage = max(best_stage, stage_index)
 		stage_index = min(rules.MAX_STAGE, min(stage_index + 1, best_stage + 1))
 		current_wave = 1
@@ -1048,7 +1105,7 @@ func _refresh_runtime_widgets() -> void:
 
 func _refresh_hero_health(full: bool) -> void:
 	for hero in heroes:
-		var stats: Dictionary = rules.hero_stats(hero, inventory, buildings, unlocked_talents)
+		var stats: Dictionary = rules.hero_stats(hero, inventory, buildings, unlocked_talents, owned_relics)
 		hero["max_hp"] = float(stats["hp"])
 		if full or float(hero.get("hp", 0.0)) <= 0.0:
 			hero["hp"] = float(stats["hp"])
@@ -1069,7 +1126,7 @@ func _living_active_heroes() -> Array:
 
 
 func _team_power() -> int:
-	return rules.team_power(heroes, inventory, buildings, unlocked_talents, rules.team_slots(buildings))
+	return rules.team_power(heroes, inventory, buildings, unlocked_talents, rules.team_slots(buildings), owned_relics)
 
 
 func _add_materials(rewards: Dictionary) -> void:
@@ -1140,6 +1197,7 @@ func _on_new_game() -> void:
 	buildings.clear()
 	unlocked_talents.clear()
 	unlocked_achievements.clear()
+	owned_relics.clear()
 	battle_log.clear()
 	selected_tab = "Battle"
 	selected_hero = 0
@@ -1361,7 +1419,7 @@ func _on_salvage_item() -> void:
 	if not rules.can_salvage_item(item, _is_item_equipped(selected_item)):
 		_spawn_float("Item protected", BAD)
 		return
-	var value: Dictionary = rules.salvage_value(item, unlocked_talents)
+	var value: Dictionary = rules.salvage_value(item, unlocked_talents, owned_relics)
 	_add_materials(value)
 	inventory.remove_at(selected_item)
 	_repair_equipment_indices_after_remove(selected_item)
@@ -1379,7 +1437,7 @@ func _on_salvage_junk() -> void:
 	for index in range(inventory.size() - 1, -1, -1):
 		var item: Dictionary = inventory[index]
 		if _is_junk_item(index, item):
-			var value: Dictionary = rules.salvage_value(item, unlocked_talents)
+			var value: Dictionary = rules.salvage_value(item, unlocked_talents, owned_relics)
 			for key in value:
 				totals[key] = int(totals.get(key, 0)) + int(value[key])
 			inventory.remove_at(index)
@@ -1533,6 +1591,7 @@ func _current_save_state() -> Dictionary:
 		"buildings": buildings,
 		"unlocked_talents": unlocked_talents,
 		"unlocked_achievements": unlocked_achievements,
+		"owned_relics": owned_relics,
 		"selected_tab": selected_tab,
 		"selected_hero": selected_hero,
 		"selected_item": selected_item,
@@ -1572,6 +1631,7 @@ func _load_game() -> bool:
 	buildings = _merge_default_buildings(data.get("buildings", {}))
 	unlocked_talents = _load_string_array(data.get("unlocked_talents", []))
 	unlocked_achievements = _load_string_array(data.get("unlocked_achievements", []))
+	owned_relics = _load_string_array(data.get("owned_relics", []))
 	battle_log = ["Loaded save. Battle restarted at wave 1."]
 	selected_tab = String(data.get("selected_tab", "Battle"))
 	if not TAB_NAMES.has(selected_tab):
@@ -1619,6 +1679,7 @@ func _achievement_progress() -> Dictionary:
 		"hero_level": highest_level,
 		"advanced_heroes": advanced_heroes,
 		"gold": int(materials.get("gold", 0)),
+		"relics": owned_relics.size(),
 	}
 
 
@@ -1660,6 +1721,11 @@ func _repair_loaded_state() -> void:
 			inventory.append(rules.generate_equipment(1, index))
 	if inventory.size() > rules.INVENTORY_CAP:
 		inventory.resize(rules.INVENTORY_CAP)
+	var repaired_relics: Array[String] = []
+	for relic_id in owned_relics:
+		if not rules.get_relic(relic_id).is_empty() and not repaired_relics.has(relic_id):
+			repaired_relics.append(relic_id)
+	owned_relics = repaired_relics
 	selected_hero = clampi(selected_hero, 0, max(0, heroes.size() - 1))
 	selected_item = clampi(selected_item, -1, max(-1, inventory.size() - 1))
 
@@ -1715,7 +1781,7 @@ func _apply_offline_progress(saved_at: float) -> void:
 		combined[resource_name] = 0
 	for cycle in range(reward_cycles):
 		var wave: int = (cycle % 5) + 1
-		var rewards: Dictionary = rules.wave_rewards(stage_for_rewards, wave, buildings, unlocked_talents)
+		var rewards: Dictionary = rules.wave_rewards(stage_for_rewards, wave, buildings, unlocked_talents, owned_relics)
 		for key in rewards:
 			combined[key] = int(combined.get(key, 0)) + int(rewards[key])
 	var speed_multiplier: int = max(1, _battle_speed())
@@ -2308,6 +2374,23 @@ func _stage_icon_texture(stage: Dictionary) -> Texture2D:
 	var texture := ImageTexture.create_from_image(image)
 	stage_icon_cache[region] = texture
 	return texture
+
+
+func _relic_icon_texture(relic: Dictionary) -> Texture2D:
+	var relic_id := String(relic.get("id", "relic"))
+	if relic_icon_cache.has(relic_id):
+		return relic_icon_cache[relic_id]
+	if relic_texture != null:
+		var relic_index := RELIC_ATLAS_ORDER.find(relic_id)
+		if relic_index >= 0:
+			var atlas := AtlasTexture.new()
+			atlas.atlas = relic_texture
+			atlas.region = Rect2(relic_index * 64, 0, 64, 64)
+			relic_icon_cache[relic_id] = atlas
+			return atlas
+	var fallback := _stage_icon_texture({"region": String(relic.get("region", "Meadow Road"))})
+	relic_icon_cache[relic_id] = fallback
+	return fallback
 
 
 func _draw_icon_rect(image: Image, rect: Rect2i, color: Color) -> void:

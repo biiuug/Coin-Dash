@@ -28,6 +28,7 @@ func _ready() -> void:
 	_test_equipment_sets_and_advancements_change_stats(rules)
 	_test_achievement_catalog_and_completion(rules)
 	_test_combat_xp_levels_and_caps_heroes(rules)
+	_test_region_relics_are_unique_and_functional(rules)
 	if failures == 0:
 		print("IDLE_RULES_TEST_PASS")
 	else:
@@ -269,6 +270,29 @@ func _test_combat_xp_levels_and_caps_heroes(rules) -> void:
 	hero["xp"] = 50
 	_assert_equal(rules.grant_hero_xp(hero, 9999), 0, "max-level hero gains no extra levels")
 	_assert_equal(hero["xp"], 0, "max-level hero does not retain useless XP")
+
+
+func _test_region_relics_are_unique_and_functional(rules) -> void:
+	_assert_equal(rules.RELICS.size(), rules.REGIONS.size(), "every region has one relic")
+	var ids: Array[String] = []
+	for relic in rules.RELICS:
+		var relic_id := String(relic["id"])
+		_assert_false(ids.has(relic_id), "relic IDs are unique")
+		_assert_false((relic["effects"] as Dictionary).is_empty(), "%s has a gameplay effect" % [relic_id])
+		ids.append(relic_id)
+	_assert_true(rules.relic_for_stage(9).is_empty(), "ordinary stage does not award a region relic")
+	_assert_equal(rules.relic_for_stage(10)["id"], "wayfarer_compass", "first capstone awards meadow relic")
+	_assert_equal(rules.relic_for_stage(120)["id"], "star_crown", "final capstone awards final relic")
+	var no_relics: Array[String] = []
+	var attack_relics: Array[String] = ["emberheart"]
+	var hero: Dictionary = rules.create_hero(rules.HEROES[0])
+	var base: Dictionary = rules.hero_stats(hero, [], {"infirmary": 1}, no_relics, no_relics)
+	var boosted: Dictionary = rules.hero_stats(hero, [], {"infirmary": 1}, no_relics, attack_relics)
+	_assert_true(int(boosted["atk"]) > int(base["atk"]), "ember relic increases hero attack")
+	var ordinary: Dictionary = rules.wave_rewards(10, 1, {"market": 1}, no_relics, no_relics)
+	var compass_relics: Array[String] = ["wayfarer_compass"]
+	var compass: Dictionary = rules.wave_rewards(10, 1, {"market": 1}, no_relics, compass_relics)
+	_assert_true(int(compass["wood"]) > int(ordinary["wood"]), "compass increases region materials")
 
 
 func _fail(message: String) -> void:

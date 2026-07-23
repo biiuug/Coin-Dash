@@ -222,6 +222,7 @@ const ACHIEVEMENTS := [
 	{"id": "seasoned", "name": "Seasoned Hero", "text": "Raise a hero to level 20.", "metric": "hero_level", "target": 20, "reward": {"gold": 1600, "herbs": 120}},
 	{"id": "advanced_class", "name": "A Higher Calling", "text": "Advance a hero at rank 5.", "metric": "advanced_heroes", "target": 1, "reward": {"shards": 20, "ink": 100}},
 	{"id": "treasury", "name": "Full Treasury", "text": "Hold 10,000 gold.", "metric": "gold", "target": 10000, "reward": {"fragments": 6, "dust": 80}},
+	{"id": "relic_keeper", "name": "Relic Keeper", "text": "Collect all 12 region relics.", "metric": "relics", "target": 12, "reward": {"gold": 8000, "essence": 30}},
 ]
 
 const REGIONS := [
@@ -237,6 +238,21 @@ const REGIONS := [
 	{"name": "Crystal Expanse", "materials": ["dust", "shards"], "enemies": ["Shardling", "Prism Drake"], "boss": "Glass Colossus", "set": "Prismatic", "gear": ["Prism Blade", "Mirror Guard", "Star Lens"]},
 	{"name": "Void Frontier", "materials": ["essence", "fragments"], "enemies": ["Voidling", "Rift Stalker"], "boss": "The Unmoored", "set": "Riftwalker", "gear": ["Null Saber", "Riftweave", "Black Compass"]},
 	{"name": "Starfall Spire", "materials": ["shards", "essence"], "enemies": ["Astral Guard", "Comet Beast"], "boss": "Crown of Stars", "set": "Ascendant", "gear": ["Starforged Edge", "Celestial Aegis", "Dawn Crown"]},
+]
+
+const RELICS := [
+	{"id": "wayfarer_compass", "name": "Wayfarer Compass", "region": "Meadow Road", "text": "+8% material rewards.", "effects": {"materials_pct": 0.08}},
+	{"id": "deepdelver_anvil", "name": "Deepdelver Anvil", "region": "Iron Mine", "text": "+6 defense to every hero.", "effects": {"def_flat": 6.0}},
+	{"id": "grave_bell", "name": "Grave Bell", "region": "Grave Ruins", "text": "+10% skill power.", "effects": {"skill_pct": 0.10}},
+	{"id": "emberheart", "name": "Emberheart", "region": "Ember Hollow", "text": "+8% hero attack.", "effects": {"atk_pct": 0.08}},
+	{"id": "warden_sigil", "name": "Warden Sigil", "region": "Fallen Keep", "text": "+10% hero health.", "effects": {"hp_pct": 0.10}},
+	{"id": "winter_fang", "name": "Winter Fang", "region": "Frostmarch", "text": "+3% critical chance.", "effects": {"crit_flat": 0.03}},
+	{"id": "tide_crown", "name": "Tide Crown", "region": "Sunken Vault", "text": "+10% gold rewards.", "effects": {"gold_pct": 0.10}},
+	{"id": "thorn_seed", "name": "Thorn Seed", "region": "Verdant Maze", "text": "+6% health and +4% attack.", "effects": {"hp_pct": 0.06, "atk_pct": 0.04}},
+	{"id": "clockwork_heart", "name": "Clockwork Heart", "region": "Clockwork City", "text": "+8% attack speed.", "effects": {"speed_flat": 0.08}},
+	{"id": "prism_eye", "name": "Prism Eye", "region": "Crystal Expanse", "text": "+8 equipment rarity score.", "effects": {"rarity_bonus": 8.0}},
+	{"id": "void_lantern", "name": "Void Lantern", "region": "Void Frontier", "text": "+12% boss damage and +10% salvage.", "effects": {"boss_damage_pct": 0.12, "salvage_pct": 0.10}},
+	{"id": "star_crown", "name": "Star Crown", "region": "Starfall Spire", "text": "+8% core stats and +10% combat XP.", "effects": {"hp_pct": 0.08, "atk_pct": 0.08, "skill_pct": 0.08, "xp_pct": 0.10}},
 ]
 
 const RARITIES: Array[String] = ["Common", "Uncommon", "Rare", "Epic", "Legendary"]
@@ -396,6 +412,28 @@ func get_talent(talent_id: String) -> Dictionary:
 	return {}
 
 
+func get_relic(relic_id: String) -> Dictionary:
+	for relic in RELICS:
+		if String(relic["id"]) == relic_id:
+			return relic.duplicate(true)
+	return {}
+
+
+func relic_for_stage(stage_index: int) -> Dictionary:
+	if stage_index < 10 or stage_index > MAX_STAGE or stage_index % 10 != 0:
+		return {}
+	return RELICS[int(stage_index / 10) - 1].duplicate(true)
+
+
+func relic_effect_total(effect_name: String, owned_relics: Array[String]) -> float:
+	var total := 0.0
+	for relic_id in owned_relics:
+		var relic := get_relic(relic_id)
+		if not relic.is_empty():
+			total += float((relic["effects"] as Dictionary).get(effect_name, 0.0))
+	return total
+
+
 func achievement_value(achievement: Dictionary, progress: Dictionary) -> int:
 	return maxi(0, int(progress.get(String(achievement.get("metric", "")), 0)))
 
@@ -429,7 +467,7 @@ func get_stage(stage_index: int) -> Dictionary:
 	}
 
 
-func hero_stats(hero: Dictionary, inventory: Array, buildings: Dictionary, unlocked_talents: Array[String]) -> Dictionary:
+func hero_stats(hero: Dictionary, inventory: Array, buildings: Dictionary, unlocked_talents: Array[String], owned_relics: Array[String] = []) -> Dictionary:
 	var class_data: Dictionary = get_class_data(String(hero["class_id"]))
 	var base: Dictionary = class_data["stats"]
 	var level: int = int(hero["level"])
@@ -452,6 +490,12 @@ func hero_stats(hero: Dictionary, inventory: Array, buildings: Dictionary, unloc
 		stats["atk"] = int(float(stats["atk"]) * 1.06)
 		stats["def"] = int(float(stats["def"]) * 1.06)
 	_apply_advancement_stats(stats, String(hero.get("advanced", "")))
+	stats["hp"] = int(float(stats["hp"]) * (1.0 + relic_effect_total("hp_pct", owned_relics)))
+	stats["atk"] = int(float(stats["atk"]) * (1.0 + relic_effect_total("atk_pct", owned_relics)))
+	stats["def"] += int(relic_effect_total("def_flat", owned_relics))
+	stats["speed"] = float(stats["speed"]) + relic_effect_total("speed_flat", owned_relics)
+	stats["crit"] = float(stats["crit"]) + relic_effect_total("crit_flat", owned_relics)
+	stats["skill_power"] = float(stats["skill_power"]) * (1.0 + relic_effect_total("skill_pct", owned_relics))
 	var infirmary_level: int = int(buildings.get("infirmary", 1))
 	stats["hp"] += infirmary_level * 18
 	for slot in SLOTS:
@@ -462,10 +506,10 @@ func hero_stats(hero: Dictionary, inventory: Array, buildings: Dictionary, unloc
 	return stats
 
 
-func team_power(heroes: Array, inventory: Array, buildings: Dictionary, unlocked_talents: Array[String], team_slots: int) -> int:
+func team_power(heroes: Array, inventory: Array, buildings: Dictionary, unlocked_talents: Array[String], team_slots: int, owned_relics: Array[String] = []) -> int:
 	var power: int = 0
 	for index in range(min(team_slots, heroes.size())):
-		var stats: Dictionary = hero_stats(heroes[index], inventory, buildings, unlocked_talents)
+		var stats: Dictionary = hero_stats(heroes[index], inventory, buildings, unlocked_talents, owned_relics)
 		power += int(stats["hp"] * 0.6 + stats["atk"] * 9 + stats["def"] * 5 + float(stats["speed"]) * 90 + float(stats["crit"]) * 300)
 	return power
 
@@ -597,11 +641,11 @@ func should_drop_equipment(stage_index: int, wave: int, roll_index: int) -> bool
 	return (stage_index * 7 + wave * 13 + roll_index * 17) % 100 < 24
 
 
-func wave_rewards(stage_index: int, wave: int, buildings: Dictionary, talents: Array[String]) -> Dictionary:
+func wave_rewards(stage_index: int, wave: int, buildings: Dictionary, talents: Array[String], owned_relics: Array[String] = []) -> Dictionary:
 	var stage: Dictionary = get_stage(stage_index)
 	var market_level: int = int(buildings.get("market", 1))
-	var material_bonus: float = 1.0 + market_level * 0.05 + (0.12 if talents.has("packed_supplies") else 0.0)
-	var gold_bonus: float = 1.0 + market_level * 0.07 + (0.15 if talents.has("merchant_routes") else 0.0)
+	var material_bonus: float = 1.0 + market_level * 0.05 + (0.12 if talents.has("packed_supplies") else 0.0) + relic_effect_total("materials_pct", owned_relics)
+	var gold_bonus: float = 1.0 + market_level * 0.07 + (0.15 if talents.has("merchant_routes") else 0.0) + relic_effect_total("gold_pct", owned_relics)
 	var rewards: Dictionary = {
 		"gold": int((18 + stage_index * 5) * gold_bonus),
 		"wood": 0,
@@ -630,8 +674,8 @@ func wave_rewards(stage_index: int, wave: int, buildings: Dictionary, talents: A
 	return rewards
 
 
-func salvage_value(item: Dictionary, talents: Array[String]) -> Dictionary:
-	var bonus: float = 1.15 if talents.has("careful_salvage") else 1.0
+func salvage_value(item: Dictionary, talents: Array[String], owned_relics: Array[String] = []) -> Dictionary:
+	var bonus: float = (1.15 if talents.has("careful_salvage") else 1.0) + relic_effect_total("salvage_pct", owned_relics)
 	return {
 		"ore": int((5 + int(item["level"]) * 2) * bonus),
 		"dust": int((1 + _rarity_index(item["rarity"])) * bonus),

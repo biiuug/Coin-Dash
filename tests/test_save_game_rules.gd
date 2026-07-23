@@ -38,6 +38,7 @@ func _sample_state() -> Dictionary:
 		"buildings": {"forge": 4, "academy": 3},
 		"unlocked_talents": ["class_drill"],
 		"unlocked_achievements": ["road_veteran"],
+		"owned_relics": ["wayfarer_compass"],
 		"selected_tab": "Equipment",
 		"selected_hero": 0,
 		"selected_item": 0,
@@ -60,13 +61,14 @@ func _sample_state() -> Dictionary:
 
 func _test_snapshot_keeps_durable_progress(rules) -> void:
 	var snapshot: Dictionary = rules.build_snapshot(_sample_state(), 12345.0)
-	_assert_equal(snapshot.get("version"), 3, "save format version")
+	_assert_equal(snapshot.get("version"), 4, "save format version")
 	_assert_equal(snapshot.get("materials"), {"gold": 321, "ore": 17}, "resources")
 	_assert_equal(snapshot.get("inventory"), [{"id": "blade", "level": 8, "required_level": 7, "locked": true}], "all inventory data")
 	_assert_equal(snapshot.get("buildings"), {"forge": 4, "academy": 3}, "building levels")
 	_assert_equal(snapshot.get("stage_index"), 7, "selected stage")
 	_assert_equal(snapshot.get("best_stage"), 9, "stage push progress")
 	_assert_equal(snapshot.get("unlocked_achievements"), ["road_veteran"], "claimed achievements")
+	_assert_equal(snapshot.get("owned_relics"), ["wayfarer_compass"], "collected relics")
 	var hero: Dictionary = snapshot["heroes"][0]
 	_assert_equal(hero.get("level"), 9, "hero level")
 	_assert_equal(hero.get("rank"), 3, "hero class rank")

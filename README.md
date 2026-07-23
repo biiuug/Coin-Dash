@@ -9,6 +9,7 @@ A Godot 4 desktop idle auto-fighter. Heroes fight automatically, earn resources 
 - Guide tab with visual shortcuts for the core loop and each progression system.
 - Ten hero classes with levels, skill levels, class rank-ups, two advancement choices, and rank unlock previews.
 - Equipment with five rarities, regional names, twelve three-piece sets, item and hero level requirements, upgrading, equipping, and salvaging.
+- Twelve unique region relics awarded by capstone bosses, with persistent combat, loot, XP, salvage, and economy bonuses.
 - Equipment filters and one-click auto-equip for the selected hero.
 - A bounded 120-slot equipment inventory with lock protection and automatic overflow salvage.
 - Bulk junk salvage for unlocked, unequipped Common and Uncommon equipment.
@@ -20,6 +21,7 @@ A Godot 4 desktop idle auto-fighter. Heroes fight automatically, earn resources 
 - Expanded talent branches for combat, economy, loot, automation, and class growth, including boss damage, salvage yield, essence gain, and team sustain bonuses.
 - Stage list showing all 120 fights, regional sets, material sources, and item level ranges so higher fights drop better loot.
 - Fifteen persistent campaign records with one-time resource rewards and progress tracking.
+- A dedicated relic collection screen and a sixteenth completion record for collecting every relic.
 - Combat XP now levels heroes automatically up to level 100; camp training remains an accelerated upgrade path.
 - Scrollable stage selection so every unlocked region remains reachable in the compact window.
 - Manual save/load/new game controls plus periodic autosave.
