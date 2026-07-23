@@ -190,14 +190,18 @@ func _build_shell() -> void:
 	header.add_child(title)
 
 	resource_row = HBoxContainer.new()
-	resource_row.custom_minimum_size = Vector2(726, 38)
+	resource_row.custom_minimum_size = Vector2(668, 38)
 	resource_row.add_theme_constant_override("separation", 8)
 	header.add_child(resource_row)
 
 	var menu := HBoxContainer.new()
-	menu.custom_minimum_size = Vector2(148, 38)
+	menu.custom_minimum_size = Vector2(206, 38)
 	menu.add_theme_constant_override("separation", 6)
 	header.add_child(menu)
+	var title_button := _make_button("Menu", Vector2(54, 30), false, BLUE)
+	title_button.tooltip_text = "Save and return to the title screen."
+	title_button.pressed.connect(_on_title_menu)
+	menu.add_child(title_button)
 	var reset_button := _make_button("New", Vector2(48, 30), false, BAD)
 	reset_button.tooltip_text = "Start a fresh save file."
 	reset_button.pressed.connect(_on_new_game_requested)
@@ -1206,6 +1210,11 @@ func _build_shell_again() -> void:
 func _on_new_game_requested() -> void:
 	if is_instance_valid(new_game_dialog):
 		new_game_dialog.popup_centered(Vector2i(440, 180))
+
+
+func _on_title_menu() -> void:
+	_save_game(false)
+	SceneTransition.change_scene("res://TitleMenu.tscn", "RETURNING TO CAMP")
 
 
 func _on_new_game() -> void:

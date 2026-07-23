@@ -5,6 +5,7 @@ A Godot 4 desktop idle auto-fighter. Heroes fight automatically, earn resources 
 ## Current Game
 
 - A 120-stage campaign across twelve authored regions, with normal, elite, and boss encounters.
+- A dedicated title menu with save-aware Start/Continue text and a fade-through-loading transition into and out of gameplay.
 - Battle dashboard with animated enemy attack, hit, and boss-skill frames, team health, gear counts, stage loot ranges, pause, and speed controls.
 - Guide tab with visual shortcuts for the core loop and each progression system.
 - Ten hero classes with levels, skill levels, class rank-ups, two advancement choices, and rank unlock previews.
@@ -30,7 +31,7 @@ A Godot 4 desktop idle auto-fighter. Heroes fight automatically, earn resources 
 
 ## Run
 
-Open this folder in Godot 4.6 or newer, then press Run. The main scene is `res://Main.tscn`.
+Open this folder in Godot 4.6 or newer, then press Run. The entry scene is `res://TitleMenu.tscn`; it transitions into `res://Main.tscn` after Start or Continue is pressed.
 
 A `Windows Desktop` export preset is included. Godot 4.6.3 export templates must be installed before packaging a Windows build.
 
