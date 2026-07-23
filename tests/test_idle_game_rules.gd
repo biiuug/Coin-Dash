@@ -22,6 +22,10 @@ func _ready() -> void:
 	_test_enemy_animation_cycle_uses_combat_frames(rules)
 	_test_enemy_names_map_to_matching_visual_families(rules)
 	_test_building_names_map_to_matching_art_columns(rules)
+	_test_campaign_has_authored_late_game_regions(rules)
+	_test_elites_and_bosses_have_distinct_rewards(rules)
+	_test_region_gear_sets_and_drop_rules(rules)
+	_test_equipment_sets_and_advancements_change_stats(rules)
 	if failures == 0:
 		print("IDLE_RULES_TEST_PASS")
 	else:
@@ -190,6 +194,54 @@ func _test_building_names_map_to_matching_art_columns(rules) -> void:
 	_assert_equal(rules.building_visual_column("academy"), 3, "academy uses academy art")
 	_assert_equal(rules.building_visual_column("shrine"), 4, "shrine uses shrine art")
 	_assert_equal(rules.building_visual_column("market"), 5, "market uses market art")
+
+
+func _test_campaign_has_authored_late_game_regions(rules) -> void:
+	_assert_equal(rules.MAX_STAGE, 120, "campaign contains 120 stages")
+	_assert_equal(rules.REGIONS.size(), 12, "campaign contains twelve authored regions")
+	var final_stage: Dictionary = rules.get_stage(rules.MAX_STAGE)
+	_assert_equal(final_stage["region"], "Starfall Spire", "final stages use the authored final region")
+	_assert_true(bool(final_stage["is_final"]), "stage 120 is marked as the campaign finale")
+	_assert_true(int(final_stage["power"]) > int(rules.get_stage(60)["power"]), "late-game power continues scaling")
+
+
+func _test_elites_and_bosses_have_distinct_rewards(rules) -> void:
+	var buildings := {"market": 1}
+	var talents: Array[String] = []
+	_assert_equal(rules.encounter_type(4, 10), "Normal", "ordinary wave is normal")
+	_assert_equal(rules.encounter_type(5, 10), "Elite", "middle wave is elite")
+	_assert_equal(rules.encounter_type(10, 10), "Boss", "final wave is boss")
+	var normal: Dictionary = rules.wave_rewards(31, 4, buildings, talents)
+	var elite: Dictionary = rules.wave_rewards(31, 5, buildings, talents)
+	var boss: Dictionary = rules.wave_rewards(31, 10, buildings, talents)
+	_assert_true(int(elite["gold"]) > int(normal["gold"]), "elite grants bonus gold")
+	_assert_true(int(elite["dust"]) > int(normal["dust"]), "elite grants bonus dust")
+	_assert_true(int(boss["essence"]) > int(normal["essence"]), "boss grants essence")
+
+
+func _test_region_gear_sets_and_drop_rules(rules) -> void:
+	var early: Dictionary = rules.generate_equipment(1, 2)
+	var late: Dictionary = rules.generate_equipment(111, 2)
+	_assert_equal(early["set"], "Wayfarer", "early gear belongs to the meadow set")
+	_assert_equal(late["set"], "Ascendant", "final-region gear belongs to the ascendant set")
+	_assert_true(String(early["name"]) != String(late["name"]), "regions have distinct item names")
+	_assert_true(rules.should_drop_equipment(20, 10, 3), "bosses guarantee equipment")
+
+
+func _test_equipment_sets_and_advancements_change_stats(rules) -> void:
+	var hero: Dictionary = rules.create_hero(rules.HEROES[0])
+	var no_talents: Array[String] = []
+	var base: Dictionary = rules.hero_stats(hero, [], {"infirmary": 1}, no_talents)
+	hero["advanced"] = "Blademaster"
+	var advanced: Dictionary = rules.hero_stats(hero, [], {"infirmary": 1}, no_talents)
+	_assert_true(int(advanced["atk"]) > int(base["atk"]), "aggressive advancement raises attack")
+	var inventory: Array = []
+	for roll in range(3):
+		inventory.append(rules.generate_equipment(1, roll))
+		hero["equipment"][rules.SLOTS[roll]] = roll
+	var set_stats: Dictionary = rules.hero_stats(hero, inventory, {"infirmary": 1}, no_talents)
+	_assert_true(float(set_stats["speed"]) > float(advanced["speed"]), "three-piece set raises speed")
+	_assert_true(float(set_stats["crit"]) > float(advanced["crit"]), "three-piece set raises crit")
 
 
 func _fail(message: String) -> void:

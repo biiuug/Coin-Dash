@@ -1,24 +1,24 @@
 # Idle Hero Camp
 
-A compact Godot 4 desktop idle auto-fighter prototype. The game runs around a small camp interface: heroes fight automatically, earn resources and equipment, then spend those gains on hero growth, gear, buildings, and talents.
+A Godot 4 desktop idle auto-fighter. Heroes fight automatically, earn resources and regional equipment, then spend those gains on hero growth, gear sets, buildings, and talents.
 
-## Current Prototype
+## Current Game
 
-- Auto-battle stage loop with waves, boss clears, run rewards, and equipment drops.
+- A 120-stage campaign across twelve authored regions, with normal, elite, and boss encounters.
 - Battle dashboard with animated enemy attack, hit, and boss-skill frames, team health, gear counts, stage loot ranges, pause, and speed controls.
 - Guide tab with visual shortcuts for the core loop and each progression system.
-- Ten hero classes with levels, skill levels, class rank-ups, advancement choices, and rank unlock previews.
-- Equipment with rarity, item level, hero level requirements, upgrading, equipping, and salvaging.
+- Ten hero classes with levels, skill levels, class rank-ups, two advancement choices, and rank unlock previews.
+- Equipment with five rarities, regional names, twelve three-piece sets, item and hero level requirements, upgrading, equipping, and salvaging.
 - Equipment filters and one-click auto-equip for the selected hero.
-- Scrollable equipment inventory with lock protection for valuable drops.
+- A bounded 120-slot equipment inventory with lock protection and automatic overflow salvage.
 - Bulk junk salvage for unlocked, unequipped Common and Uncommon equipment.
 - Optional auto-junk conversion for newly dropped Common and Uncommon gear.
-- Distinct pixel-art visuals for all nine resources, buildings, enemy families, hero portraits, equipment slots, talents, stage regions, and current card actions.
+- Distinct pixel-art visuals for all nine resources, buildings, enemy families, hero portraits, equipment slots, talents, and stage regions.
 - Six camp buildings: Forge, Workshop, Academy, Infirmary, Market, and Shrine.
 - Six distinct camp services for crafting, junk sorting, hero training, team recovery, supply trading, and essence distilling.
 - Camp screen with visible resource-icon service and upgrade costs plus an affordable upgrade-all action.
 - Expanded talent branches for combat, economy, loot, automation, and class growth, including boss damage, salvage yield, essence gain, and team sustain bonuses.
-- Stage list showing material sources and item level ranges so higher fights drop better loot.
+- Stage list showing all 120 fights, regional sets, material sources, and item level ranges so higher fights drop better loot.
 - Scrollable stage selection so every unlocked region remains reachable in the compact window.
 - Manual save/load/new game controls plus periodic autosave.
 - New-game confirmation before the current autosave is replaced.
@@ -27,6 +27,8 @@ A compact Godot 4 desktop idle auto-fighter prototype. The game runs around a sm
 ## Run
 
 Open this folder in Godot 4.6 or newer, then press Run. The main scene is `res://Main.tscn`.
+
+A `Windows Desktop` export preset is included. Godot 4.6.3 export templates must be installed before packaging a Windows build.
 
 ## Controls
 

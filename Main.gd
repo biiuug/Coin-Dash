@@ -18,7 +18,7 @@ const CLASS_ATLAS_ORDER: Array[String] = ["warrior", "ranger", "cleric", "rogue"
 const EQUIPMENT_ATLAS_SLOTS: Array[String] = ["weapon", "armor", "trinket"]
 const EQUIPMENT_ATLAS_RARITIES: Array[String] = ["Common", "Uncommon", "Rare", "Epic", "Legendary"]
 const TALENT_ATLAS_BRANCHES: Array[String] = ["Combat", "Economy", "Loot", "Automation", "Class"]
-const STAGE_ATLAS_REGIONS: Array[String] = ["Meadow Road", "Iron Mine", "Grave Ruins", "Ember Hollow", "Fallen Keep"]
+const STAGE_ATLAS_REGIONS: Array[String] = ["Meadow Road", "Iron Mine", "Grave Ruins", "Ember Hollow", "Fallen Keep", "Frostmarch", "Sunken Vault", "Verdant Maze", "Clockwork City", "Crystal Expanse", "Void Frontier", "Starfall Spire"]
 const SAVE_PATH := "user://idle_hero_camp_save.json"
 const AUTOSAVE_INTERVAL := 8.0
 const OFFLINE_REWARD_CAP_SECONDS := 7200
@@ -137,14 +137,12 @@ func _load_assets() -> void:
 	resource_texture = _load_png_texture("res://assets/resources/resource-icons-v2.png")
 	equipment_texture = _load_png_texture("res://assets/equipment/equipment-icons-v1.png")
 	talent_texture = _load_png_texture("res://assets/ui/talent-icons-v1.png")
-	stage_texture = _load_png_texture("res://assets/ui/stage-icons-v1.png")
+	stage_texture = _load_png_texture("res://assets/ui/stage-icons-v2.png")
 
 
 func _load_png_texture(path: String) -> Texture2D:
-	var image := Image.load_from_file(path)
-	if image == null or image.is_empty():
-		return null
-	return ImageTexture.create_from_image(image)
+	var resource := ResourceLoader.load(path, "Texture2D")
+	return resource as Texture2D
 
 
 func _initialize_state() -> void:
@@ -334,7 +332,7 @@ func _build_battle_tab() -> void:
 	content.add_child(right)
 
 	var stage: Dictionary = rules.get_stage(stage_index)
-	var stage_title := _make_label("%s  |  Wave %d/%d" % [String(stage["name"]), current_wave, int(stage["wave_count"])], 20, TEXT_MAIN, HORIZONTAL_ALIGNMENT_LEFT)
+	var stage_title := _make_label("%s  |  %s %d/%d" % [String(stage["name"]), rules.encounter_type(current_wave, int(stage["wave_count"])), current_wave, int(stage["wave_count"])], 20, TEXT_MAIN, HORIZONTAL_ALIGNMENT_LEFT)
 	stage_title.position = Vector2(18, 14)
 	stage_title.size = Vector2(500, 28)
 	left.add_child(stage_title)
@@ -380,7 +378,7 @@ func _build_battle_tab() -> void:
 	speed_btn.pressed.connect(_on_cycle_speed)
 	controls.add_child(speed_btn)
 
-	var summary := _make_label("Drops improve by stage. Boss waves add essence, shards, and better item levels.", 14, TEXT_MUTED, HORIZONTAL_ALIGNMENT_LEFT)
+	var summary := _make_label("Elite wave 5 improves loot. Boss wave 10 guarantees gear and opens the next stage.", 14, TEXT_MUTED, HORIZONTAL_ALIGNMENT_LEFT)
 	summary.position = Vector2(18, 390)
 	summary.size = Vector2(670, 26)
 	left.add_child(summary)
@@ -525,7 +523,8 @@ func _build_heroes_tab() -> void:
 	selected_portrait.texture = _hero_portrait_texture(selected)
 	selected_portrait.tooltip_text = _hero_tooltip(selected, stats)
 	details.add_child(selected_portrait)
-	var subtitle := _make_label("Advanced path: %s" % [String(class_data["advanced"][min(max(int(selected["rank"]) - 4, 0), 1)]) if int(selected["rank"]) >= 5 else "Not advanced"], 14, TEXT_MUTED, HORIZONTAL_ALIGNMENT_LEFT)
+	var advancement_name := String(selected.get("advanced", ""))
+	var subtitle := _make_label("Advanced path: %s" % [advancement_name if not advancement_name.is_empty() else "Choose at Rank 5"], 14, TEXT_MUTED, HORIZONTAL_ALIGNMENT_LEFT)
 	subtitle.position = Vector2(104, 54)
 	subtitle.size = Vector2(500, 24)
 	details.add_child(subtitle)
@@ -546,6 +545,14 @@ func _build_heroes_tab() -> void:
 	auto_equip.tooltip_text = "Equip the best available valid gear for this hero."
 	auto_equip.pressed.connect(_on_auto_equip_selected_hero)
 	details.add_child(auto_equip)
+	if int(selected["rank"]) >= 5 and advancement_name.is_empty():
+		var paths: Array = class_data["advanced"]
+		for path_index in range(paths.size()):
+			var path_button := _make_button("Path %s" % [char(65 + path_index)], Vector2(72, 36), false, GOOD if path_index == 0 else BLUE)
+			path_button.position = Vector2(630 + path_index * 76, 142)
+			path_button.tooltip_text = "%s: %s specialization" % [String(paths[path_index]), "offensive" if path_index == 0 else "defensive"]
+			path_button.pressed.connect(_on_choose_advancement.bind(String(paths[path_index])))
+			details.add_child(path_button)
 
 	var unlocks: Array = class_data["rank_unlocks"]
 	var unlock_title := _make_label("Rank unlocks", 18, TEXT_MAIN, HORIZONTAL_ALIGNMENT_LEFT)
@@ -591,7 +598,7 @@ func _build_equipment_tab() -> void:
 	var details := _panel(Vector2(624, 0), Vector2(448, 500))
 	content.add_child(details)
 
-	var title := _make_label("Inventory", 22, ACCENT, HORIZONTAL_ALIGNMENT_LEFT)
+	var title := _make_label("Inventory  %d/%d" % [inventory.size(), rules.INVENTORY_CAP], 22, ACCENT, HORIZONTAL_ALIGNMENT_LEFT)
 	title.position = Vector2(16, 12)
 	title.size = Vector2(220, 30)
 	list.add_child(title)
@@ -829,17 +836,19 @@ func _build_stages_tab() -> void:
 	stage_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	content.add_child(stage_scroll)
 	var stage_list := Control.new()
-	stage_list.custom_minimum_size = Vector2(1054, 15 * 42)
+	stage_list.custom_minimum_size = Vector2(1054, rules.MAX_STAGE * 42)
 	stage_scroll.add_child(stage_list)
 	var y := 0
-	for index in range(1, 16):
+	for index in range(1, rules.MAX_STAGE + 1):
 		var stage: Dictionary = rules.get_stage(index)
 		var stage_panel := _panel(Vector2(0, y), Vector2(1054, 36))
 		stage_list.add_child(stage_panel)
-		var stage_icon := ColorRect.new()
+		var stage_icon := TextureRect.new()
 		stage_icon.position = Vector2(12, 7)
 		stage_icon.size = Vector2(22, 22)
-		stage_icon.color = _region_color(String(stage["region"]))
+		stage_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		stage_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		stage_icon.texture = _stage_icon_texture(stage)
 		stage_icon.tooltip_text = String(stage["region"])
 		stage_panel.add_child(stage_icon)
 		var label := _make_label("%02d  %s  | Item Lv.%d-%d | %s" % [
@@ -891,7 +900,9 @@ func _tick_battle(delta: float) -> void:
 	if enemy_hp <= 0.0:
 		_complete_wave()
 		return
-	var enemy_damage: float = max(1.0, float(stage["enemy_atk"]) * delta * 0.36)
+	var encounter := rules.encounter_type(current_wave, int(stage["wave_count"]))
+	var encounter_damage_multiplier := 1.8 if encounter == "Boss" else (1.35 if encounter == "Elite" else 1.0)
+	var enemy_damage: float = max(1.0, float(stage["enemy_atk"]) * delta * 0.36 * encounter_damage_multiplier)
 	for hero in living:
 		var stats: Dictionary = rules.hero_stats(hero, inventory, buildings, unlocked_talents)
 		hero["hp"] = max(0.0, float(hero["hp"]) - max(0.2, enemy_damage - float(stats["def"]) * 0.012))
@@ -912,22 +923,29 @@ func _complete_wave() -> void:
 		hero["xp"] = int(hero.get("xp", 0)) + xp_gain
 	var stage: Dictionary = rules.get_stage(stage_index)
 	var boss_wave: bool = current_wave >= int(stage["wave_count"])
-	if boss_wave or ((current_wave + stage_index) % 4 == 0):
-		item_roll_counter += 1
+	item_roll_counter += 1
+	if rules.should_drop_equipment(stage_index, current_wave, item_roll_counter):
 		var rarity_bonus: int = 12 if unlocked_talents.has("rare_find") else 0
 		var item: Dictionary = rules.generate_equipment(stage_index, item_roll_counter, rarity_bonus)
 		if auto_salvage_junk and _is_low_rarity_item(item):
 			var salvage: Dictionary = rules.salvage_value(item, unlocked_talents)
 			_add_materials(salvage)
 			_add_log("Auto junk: %s" % [_format_cost(salvage, true)])
+		elif inventory.size() >= rules.INVENTORY_CAP:
+			var overflow_salvage: Dictionary = rules.salvage_value(item, unlocked_talents)
+			_add_materials(overflow_salvage)
+			_add_log("Pack full: %s salvaged." % [String(item["name"])])
 		else:
 			inventory.append(item)
 			_add_log("Gear: %s Lv.%d" % [String(item["name"]), int(item["level"])])
 	if boss_wave:
 		best_stage = max(best_stage, stage_index)
-		stage_index = min(stage_index + 1, best_stage + 1)
+		stage_index = min(rules.MAX_STAGE, min(stage_index + 1, best_stage + 1))
 		current_wave = 1
-		_add_log("Boss cleared. Stage %d opened." % [stage_index])
+		if bool(stage.get("is_final", false)):
+			_add_log("Crown of Stars defeated. Campaign complete!")
+		else:
+			_add_log("Boss cleared. Stage %d opened." % [stage_index])
 	else:
 		current_wave += 1
 	_set_enemy_for_wave()
@@ -951,8 +969,11 @@ func _set_enemy_for_wave() -> void:
 	var enemies: Array = stage["enemies"]
 	enemy_name = String(stage["boss"]) if current_wave >= int(stage["wave_count"]) else String(enemies[current_wave % enemies.size()])
 	enemy_max_hp = float(stage["enemy_hp"]) * (1.0 + current_wave * 0.10)
-	if current_wave >= int(stage["wave_count"]):
+	var encounter := rules.encounter_type(current_wave, int(stage["wave_count"]))
+	if encounter == "Boss":
 		enemy_max_hp *= 1.8
+	elif encounter == "Elite":
+		enemy_max_hp *= 1.4
 	enemy_hp = enemy_max_hp
 	combat_visual_clock = 0.0
 	enemy_visual_state = 0
@@ -967,7 +988,7 @@ func _update_battle_widgets() -> void:
 		enemy_bar.value = enemy_hp
 	if wave_label != null:
 		var stage: Dictionary = rules.get_stage(stage_index)
-		wave_label.text = "%s  |  Wave %d/%d" % [String(stage["name"]), current_wave, int(stage["wave_count"])]
+		wave_label.text = "%s  |  %s %d/%d" % [String(stage["name"]), rules.encounter_type(current_wave, int(stage["wave_count"])), current_wave, int(stage["wave_count"])]
 	if power_label != null:
 		var stage: Dictionary = rules.get_stage(stage_index)
 		power_label.text = "Team Power %d / Stage %d" % [_team_power(), int(stage["power"])]
@@ -1100,7 +1121,7 @@ func _on_farm_best() -> void:
 
 
 func _on_push_stage() -> void:
-	stage_index = best_stage + 1
+	stage_index = min(rules.MAX_STAGE, best_stage + 1)
 	current_wave = 1
 	_set_enemy_for_wave()
 	_add_log("Pushing stage %d." % [stage_index])
@@ -1178,11 +1199,22 @@ func _on_rank_hero() -> void:
 		return
 	rules.spend(cost, materials)
 	hero["rank"] = int(hero["rank"]) + 1
-	if int(hero["rank"]) == 5:
-		var class_data: Dictionary = rules.get_class_data(String(hero["class_id"]))
-		hero["advanced"] = String(class_data["advanced"][0])
 	_refresh_hero_health(false)
-	_spawn_float("Rank up", ACCENT)
+	_spawn_float("Choose an advanced path" if int(hero["rank"]) == 5 else "Rank up", ACCENT)
+	_save_game(false)
+	_refresh_ui()
+
+
+func _on_choose_advancement(path_name: String) -> void:
+	var hero: Dictionary = heroes[selected_hero]
+	if int(hero.get("rank", 1)) < 5 or not String(hero.get("advanced", "")).is_empty():
+		return
+	var class_data: Dictionary = rules.get_class_data(String(hero["class_id"]))
+	if not (class_data["advanced"] as Array).has(path_name):
+		return
+	hero["advanced"] = path_name
+	_refresh_hero_health(false)
+	_spawn_float("Advanced: %s" % [path_name], ACCENT)
 	_save_game(false)
 	_refresh_ui()
 
@@ -1497,8 +1529,8 @@ func _load_game() -> bool:
 	auto_salvage_junk = bool(data.get("auto_salvage_junk", false))
 	selected_building = String(data.get("selected_building", "forge"))
 	selected_talent = String(data.get("selected_talent", "battle_rhythm"))
-	stage_index = max(1, int(data.get("stage_index", 1)))
-	best_stage = max(1, int(data.get("best_stage", 1)))
+	stage_index = clampi(int(data.get("stage_index", 1)), 1, rules.MAX_STAGE)
+	best_stage = clampi(int(data.get("best_stage", 1)), 1, rules.MAX_STAGE)
 	current_wave = 1
 	battle_paused = bool(data.get("battle_paused", false))
 	speed_index = clampi(int(data.get("speed_index", 1)), 0, 2)
@@ -1537,6 +1569,8 @@ func _repair_loaded_state() -> void:
 	if inventory.is_empty():
 		for index in range(4):
 			inventory.append(rules.generate_equipment(1, index))
+	if inventory.size() > rules.INVENTORY_CAP:
+		inventory.resize(rules.INVENTORY_CAP)
 	selected_hero = clampi(selected_hero, 0, max(0, heroes.size() - 1))
 	selected_item = clampi(selected_item, -1, max(-1, inventory.size() - 1))
 
@@ -1766,9 +1800,11 @@ func _add_resource_cost_row(parent: Control, cost: Dictionary, pos: Vector2, max
 
 func _hero_tooltip(hero: Dictionary, stats: Dictionary) -> String:
 	var class_data: Dictionary = rules.get_class_data(String(hero["class_id"]))
-	return "%s\n%s\nHP %d  ATK %d  DEF %d\nSpeed %.2f  Crit %.1f%%\nSkill: %s Lv.%d" % [
+	var path := String(hero.get("advanced", ""))
+	return "%s\n%s%s\nHP %d  ATK %d  DEF %d\nSpeed %.2f  Crit %.1f%%\nSkill: %s Lv.%d" % [
 		String(hero["name"]),
 		String(class_data["role"]),
+		" | %s" % [path] if not path.is_empty() else "",
 		int(stats["hp"]),
 		int(stats["atk"]),
 		int(stats["def"]),
@@ -1784,6 +1820,10 @@ func _item_tooltip(item: Dictionary) -> String:
 		"%s %s" % [String(item["rarity"]), String(item["slot"]).capitalize()],
 		"Level %d, requires hero level %d" % [int(item["level"]), int(item["required_level"])],
 	]
+	var set_name := String(item.get("set", ""))
+	if not set_name.is_empty():
+		lines.append("%s set: 2 pieces +8%% ATK/HP, 3 pieces +SPD/CRIT" % [set_name])
+		lines.append("Found in %s" % [String(item.get("source_region", "Unknown region"))])
 	if bool(item.get("locked", false)):
 		lines.append("Locked: protected from salvage")
 	var main: Dictionary = item["main"]

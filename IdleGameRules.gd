@@ -1,6 +1,8 @@
 extends RefCounted
 
 const RESOURCE_ORDER: Array[String] = ["gold", "wood", "ore", "herbs", "ink", "dust", "essence", "shards", "fragments"]
+const MAX_STAGE := 120
+const INVENTORY_CAP := 120
 
 const RESOURCE_VISUALS := {
 	"gold": {"symbol": "coin", "color": Color(0.94, 0.72, 0.20)},
@@ -204,11 +206,18 @@ const TALENTS := [
 ]
 
 const REGIONS := [
-	{"name": "Meadow Road", "materials": ["wood", "herbs"], "enemies": ["Slime", "Wolf"], "boss": "Moss Alpha"},
-	{"name": "Iron Mine", "materials": ["ore", "dust"], "enemies": ["Mole", "Golem"], "boss": "Orebreaker"},
-	{"name": "Grave Ruins", "materials": ["ink", "essence"], "enemies": ["Zombie", "Specter"], "boss": "Crypt King"},
-	{"name": "Ember Hollow", "materials": ["ore", "fragments"], "enemies": ["Dinosaur", "Drake"], "boss": "Emberjaw"},
-	{"name": "Fallen Keep", "materials": ["shards", "fragments"], "enemies": ["Bone Knight", "Warden"], "boss": "Hollow Lord"},
+	{"name": "Meadow Road", "materials": ["wood", "herbs"], "enemies": ["Slime", "Wolf"], "boss": "Moss Alpha", "set": "Wayfarer", "gear": ["Trailblade", "Hidecoat", "Lucky Acorn"]},
+	{"name": "Iron Mine", "materials": ["ore", "dust"], "enemies": ["Mole", "Golem"], "boss": "Orebreaker", "set": "Deepdelver", "gear": ["Iron Pick", "Riveted Plate", "Miner's Lamp"]},
+	{"name": "Grave Ruins", "materials": ["ink", "essence"], "enemies": ["Zombie", "Specter"], "boss": "Crypt King", "set": "Gravebound", "gear": ["Grave Scythe", "Mourning Mail", "Pale Locket"]},
+	{"name": "Ember Hollow", "materials": ["ore", "fragments"], "enemies": ["Dinosaur", "Drake"], "boss": "Emberjaw", "set": "Emberhide", "gear": ["Cinder Fang", "Scale Mantle", "Coal Heart"]},
+	{"name": "Fallen Keep", "materials": ["shards", "fragments"], "enemies": ["Bone Knight", "Warden"], "boss": "Hollow Lord", "set": "Oathbroken", "gear": ["Keep Cleaver", "Warden Plate", "Broken Signet"]},
+	{"name": "Frostmarch", "materials": ["herbs", "shards"], "enemies": ["Frostling", "Whitefang"], "boss": "Wintermaw", "set": "Rimeguard", "gear": ["Glacier Edge", "Rimecoat", "Frozen Tear"]},
+	{"name": "Sunken Vault", "materials": ["ink", "fragments"], "enemies": ["Drowned", "Shellback"], "boss": "Tide Tyrant", "set": "Tidecaller", "gear": ["Coral Spear", "Pearl Carapace", "Siren Coin"]},
+	{"name": "Verdant Maze", "materials": ["wood", "essence"], "enemies": ["Vinebeast", "Sporeling"], "boss": "Thorn Matron", "set": "Wildheart", "gear": ["Briar Hook", "Living Bark", "Bloom Seed"]},
+	{"name": "Clockwork City", "materials": ["ore", "ink"], "enemies": ["Automaton", "Gearhound"], "boss": "Grand Engine", "set": "Mechanist", "gear": ["Arc Wrench", "Brass Shell", "Ticking Core"]},
+	{"name": "Crystal Expanse", "materials": ["dust", "shards"], "enemies": ["Shardling", "Prism Drake"], "boss": "Glass Colossus", "set": "Prismatic", "gear": ["Prism Blade", "Mirror Guard", "Star Lens"]},
+	{"name": "Void Frontier", "materials": ["essence", "fragments"], "enemies": ["Voidling", "Rift Stalker"], "boss": "The Unmoored", "set": "Riftwalker", "gear": ["Null Saber", "Riftweave", "Black Compass"]},
+	{"name": "Starfall Spire", "materials": ["shards", "essence"], "enemies": ["Astral Guard", "Comet Beast"], "boss": "Crown of Stars", "set": "Ascendant", "gear": ["Starforged Edge", "Celestial Aegis", "Dawn Crown"]},
 ]
 
 const RARITIES: Array[String] = ["Common", "Uncommon", "Rare", "Epic", "Legendary"]
@@ -369,9 +378,10 @@ func get_talent(talent_id: String) -> Dictionary:
 
 
 func get_stage(stage_index: int) -> Dictionary:
+	stage_index = clampi(stage_index, 1, MAX_STAGE)
 	var region_index: int = int((stage_index - 1) / 10)
 	var local_stage: int = ((stage_index - 1) % 10) + 1
-	var region: Dictionary = REGIONS[min(region_index, REGIONS.size() - 1)]
+	var region: Dictionary = REGIONS[region_index]
 	var level_min: int = max(1, stage_index - 3)
 	var level_max: int = stage_index + 2 + region_index * 2
 	return {
@@ -379,14 +389,16 @@ func get_stage(stage_index: int) -> Dictionary:
 		"name": "%s %d-%d" % [region["name"], region_index + 1, local_stage],
 		"region": region["name"],
 		"wave_count": 10,
-		"enemy_hp": 70 + stage_index * 24,
-		"enemy_atk": 7 + stage_index * 3,
-		"power": 450 + stage_index * 180,
+		"enemy_hp": 70 + stage_index * 24 + region_index * region_index * 35,
+		"enemy_atk": 7 + stage_index * 3 + region_index * 2,
+		"power": 450 + stage_index * 180 + region_index * region_index * 120,
 		"item_min": level_min,
 		"item_max": level_max,
 		"materials": region["materials"],
 		"enemies": region["enemies"],
 		"boss": region["boss"],
+		"set": region["set"],
+		"is_final": stage_index == MAX_STAGE,
 	}
 
 
@@ -412,12 +424,14 @@ func hero_stats(hero: Dictionary, inventory: Array, buildings: Dictionary, unloc
 	if unlocked_talents.has("elite_doctrine"):
 		stats["atk"] = int(float(stats["atk"]) * 1.06)
 		stats["def"] = int(float(stats["def"]) * 1.06)
+	_apply_advancement_stats(stats, String(hero.get("advanced", "")))
 	var infirmary_level: int = int(buildings.get("infirmary", 1))
 	stats["hp"] += infirmary_level * 18
 	for slot in SLOTS:
 		var item_index: int = int(hero["equipment"].get(slot, -1))
 		if item_index >= 0 and item_index < inventory.size():
 			_apply_item_stats(stats, inventory[item_index])
+	_apply_set_bonuses(stats, hero, inventory)
 	return stats
 
 
@@ -483,6 +497,8 @@ func equipment_upgrade_cost(item: Dictionary) -> Dictionary:
 
 func generate_equipment(stage_index: int, roll_index: int, rarity_bonus: int = 0) -> Dictionary:
 	var stage: Dictionary = get_stage(stage_index)
+	var region_index: int = int((int(stage["index"]) - 1) / 10)
+	var region: Dictionary = REGIONS[region_index]
 	var slot: String = SLOTS[(stage_index + roll_index) % SLOTS.size()]
 	var rarity_score: int = (stage_index + roll_index * 3 + rarity_bonus) % 100
 	var rarity: String = "Common"
@@ -499,15 +515,35 @@ func generate_equipment(stage_index: int, roll_index: int, rarity_bonus: int = 0
 	var main_stat: Dictionary = _item_main_stat(slot, item_level, rarity)
 	return {
 		"id": "item_%d_%d" % [stage_index, roll_index],
-		"name": "%s %s" % [rarity, _slot_name(slot)],
+		"name": "%s %s" % [rarity, String(region["gear"][SLOTS.find(slot)])],
 		"slot": slot,
 		"rarity": rarity,
 		"level": item_level,
 		"required_level": req_level,
 		"main": main_stat,
 		"affix": _item_affix(stage_index, roll_index, rarity),
+		"set": String(region["set"]),
+		"source_region": String(stage["region"]),
 		"locked": false,
 	}
+
+
+func encounter_type(wave: int, wave_count: int) -> String:
+	if wave >= wave_count:
+		return "Boss"
+	if wave % 5 == 0:
+		return "Elite"
+	return "Normal"
+
+
+func should_drop_equipment(stage_index: int, wave: int, roll_index: int) -> bool:
+	var stage: Dictionary = get_stage(stage_index)
+	var encounter := encounter_type(wave, int(stage["wave_count"]))
+	if encounter == "Boss":
+		return true
+	if encounter == "Elite":
+		return (stage_index + roll_index) % 100 < 72
+	return (stage_index * 7 + wave * 13 + roll_index * 17) % 100 < 24
 
 
 func wave_rewards(stage_index: int, wave: int, buildings: Dictionary, talents: Array[String]) -> Dictionary:
@@ -528,9 +564,12 @@ func wave_rewards(stage_index: int, wave: int, buildings: Dictionary, talents: A
 	}
 	for material in stage["materials"]:
 		rewards[material] = int((3 + stage_index) * material_bonus)
-	if wave % 5 == 0:
-		rewards["dust"] += 2 + int(stage_index / 3)
-	if wave >= int(stage["wave_count"]):
+	var encounter := encounter_type(wave, int(stage["wave_count"]))
+	if encounter == "Elite":
+		rewards["gold"] += int((12 + stage_index * 3) * gold_bonus)
+		rewards["dust"] += 3 + int(stage_index / 3)
+		rewards["fragments"] += int(stage_index / 30)
+	if encounter == "Boss":
 		rewards["essence"] += 1 + int(stage_index / 10)
 		if talents.has("essence_lure"):
 			rewards["essence"] += 1
@@ -571,6 +610,10 @@ func _item_affix(stage_index: int, roll_index: int, rarity: String) -> Dictionar
 		{"stat": "hp", "label": "HP", "base": 35},
 		{"stat": "def", "label": "Defense", "base": 3},
 		{"stat": "crit", "label": "Crit", "base": 0.015},
+		{"stat": "speed", "label": "Speed", "base": 0.025},
+		{"stat": "skill_power", "label": "Skill Power", "base": 0.04},
+		{"stat": "atk", "label": "Ferocity", "base": 8},
+		{"stat": "hp", "label": "Vitality", "base": 55},
 	]
 	var affix: Dictionary = affixes[(stage_index + roll_index) % affixes.size()]
 	var value = affix["base"]
@@ -579,6 +622,36 @@ func _item_affix(stage_index: int, roll_index: int, rarity: String) -> Dictionar
 	else:
 		value = int(value) + stage_index * (1 + _rarity_index(rarity))
 	return {"stat": affix["stat"], "label": affix["label"], "value": value}
+
+
+func _apply_set_bonuses(stats: Dictionary, hero: Dictionary, inventory: Array) -> void:
+	var counts: Dictionary = {}
+	for slot in SLOTS:
+		var item_index := int(hero.get("equipment", {}).get(slot, -1))
+		if item_index >= 0 and item_index < inventory.size():
+			var set_name := String(inventory[item_index].get("set", ""))
+			if not set_name.is_empty():
+				counts[set_name] = int(counts.get(set_name, 0)) + 1
+	for set_name in counts:
+		var count := int(counts[set_name])
+		if count >= 2:
+			stats["atk"] = int(float(stats["atk"]) * 1.08)
+			stats["hp"] = int(float(stats["hp"]) * 1.08)
+		if count >= 3:
+			stats["speed"] = float(stats["speed"]) + 0.08
+			stats["crit"] = float(stats["crit"]) + 0.04
+
+
+func _apply_advancement_stats(stats: Dictionary, advancement: String) -> void:
+	if advancement.is_empty():
+		return
+	var aggressive := ["Blademaster", "Sniper", "Battle Saint", "Nightblade", "Archmage", "Templar", "Wildspeaker", "Machinist", "Lichbinder", "Storm Fist"]
+	if aggressive.has(advancement):
+		stats["atk"] = int(float(stats["atk"]) * 1.18)
+		stats["crit"] = float(stats["crit"]) + 0.04
+	else:
+		stats["hp"] = int(float(stats["hp"]) * 1.18)
+		stats["def"] = int(float(stats["def"]) * 1.15)
 
 
 func _slot_name(slot: String) -> String:
