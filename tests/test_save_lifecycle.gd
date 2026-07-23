@@ -22,6 +22,8 @@ func _ready() -> void:
 	await get_tree().process_frame
 	_test_exit_save()
 	DirAccess.remove_absolute(_save_file_path())
+	DirAccess.remove_absolute(_save_file_path() + ".bak")
+	DirAccess.remove_absolute(_save_file_path() + ".tmp")
 	if failures == 0:
 		print("SAVE_LIFECYCLE_TEST_PASS")
 	else:
@@ -63,11 +65,18 @@ func _write_fixture() -> void:
 		"item_roll_counter": 19,
 		"saved_at": Time.get_unix_time_from_system(),
 	}
-	var file := FileAccess.open(save_path, FileAccess.WRITE)
-	if file == null:
+	var encoded := JSON.stringify(fixture)
+	var backup_file := FileAccess.open(save_path + ".bak", FileAccess.WRITE)
+	if backup_file == null:
 		_assert_equal(FileAccess.get_open_error(), OK, "fixture save file opens")
 		return
-	file.store_string(JSON.stringify(fixture))
+	backup_file.store_string(encoded)
+	backup_file = null
+	var file := FileAccess.open(save_path, FileAccess.WRITE)
+	if file == null:
+		_assert_equal(FileAccess.get_open_error(), OK, "corrupt primary fixture opens")
+		return
+	file.store_string("{damaged primary")
 
 
 func _test_automatic_load(game) -> void:
@@ -83,6 +92,7 @@ func _test_automatic_load(game) -> void:
 	_assert_equal(game.owned_relics, ["wayfarer_compass"], "collected relics auto-load")
 	_assert_equal(game.current_wave, 1, "wave progress resets on load")
 	_assert_equal(game.heroes[0]["hp"], game.heroes[0]["max_hp"], "hero starts at full health")
+	_assert_equal(game.battle_log.has("Recovered backup save."), true, "corrupt primary recovers from backup")
 
 
 func _test_exit_save() -> void:

@@ -24,9 +24,9 @@ A Godot 4 desktop idle auto-fighter. Heroes fight automatically, earn resources 
 - A dedicated relic collection screen and a sixteenth completion record for collecting every relic.
 - Combat XP now levels heroes automatically up to level 100; camp training remains an accelerated upgrade path.
 - Scrollable stage selection so every unlocked region remains reachable in the compact window.
-- Manual save/load/new game controls plus periodic autosave.
-- New-game confirmation before the current autosave is replaced.
-- Offline resource progress after loading a save, capped to keep returns controlled.
+- Automatic loading, action-triggered saves, periodic autosave, and a confirmed new-game reset.
+- Atomic local saves with a rotating backup and automatic recovery from malformed primary JSON.
+- Offline resource progress after loading a save, with the Observatory expanding the reward cap from two to six hours.
 
 ## Run
 

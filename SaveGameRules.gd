@@ -37,6 +37,23 @@ func build_snapshot(state: Dictionary, saved_at: float) -> Dictionary:
 	return snapshot
 
 
+func parse_snapshot_text(text: String) -> Dictionary:
+	var parser := JSON.new()
+	if parser.parse(text) != OK:
+		return {}
+	var parsed = parser.data
+	if typeof(parsed) != TYPE_DICTIONARY:
+		return {}
+	var snapshot: Dictionary = parsed
+	if typeof(snapshot.get("materials", null)) != TYPE_DICTIONARY:
+		return {}
+	if typeof(snapshot.get("heroes", null)) != TYPE_ARRAY:
+		return {}
+	if typeof(snapshot.get("buildings", null)) != TYPE_DICTIONARY:
+		return {}
+	return snapshot
+
+
 func _durable_heroes(value: Variant) -> Array:
 	var result: Array = []
 	if typeof(value) != TYPE_ARRAY:

@@ -10,6 +10,7 @@ func _ready() -> void:
 	_test_snapshot_keeps_durable_progress(rules)
 	_test_snapshot_omits_current_battle_progress(rules)
 	_test_snapshot_does_not_alias_live_state(rules)
+	_test_snapshot_parser_rejects_corruption(rules)
 	if failures == 0:
 		print("SAVE_GAME_RULES_TEST_PASS")
 	else:
@@ -94,6 +95,14 @@ func _test_snapshot_does_not_alias_live_state(rules) -> void:
 	snapshot["heroes"][0]["level"] = 1
 	_assert_equal(state["materials"]["gold"], 321, "snapshot resources are copied")
 	_assert_equal(state["heroes"][0]["level"], 9, "snapshot heroes are copied")
+
+
+func _test_snapshot_parser_rejects_corruption(rules) -> void:
+	_assert_equal(rules.parse_snapshot_text("not json"), {}, "invalid JSON is rejected")
+	_assert_equal(rules.parse_snapshot_text('{"materials":{}}'), {}, "incomplete save shape is rejected")
+	var encoded := JSON.stringify(rules.build_snapshot(_sample_state(), 12345.0))
+	var parsed: Dictionary = rules.parse_snapshot_text(encoded)
+	_assert_equal(parsed.get("version"), 4, "valid save JSON is accepted")
 
 
 func _assert_equal(actual: Variant, expected: Variant, message: String) -> void:

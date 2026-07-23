@@ -289,7 +289,7 @@ func _build_guide_tab() -> void:
 	subtitle.position = Vector2(20, 52)
 	subtitle.size = Vector2(760, 26)
 	overview.add_child(subtitle)
-	var save_line := _make_label("Autosave every %d seconds. Offline rewards are capped at %d hours." % [int(AUTOSAVE_INTERVAL), int(OFFLINE_REWARD_CAP_SECONDS / 3600)], 13, TEXT_MUTED, HORIZONTAL_ALIGNMENT_LEFT)
+	var save_line := _make_label("Autosave every %d seconds. Current offline reward cap: %d hours." % [int(AUTOSAVE_INTERVAL), int(_offline_reward_cap_seconds() / 3600)], 13, TEXT_MUTED, HORIZONTAL_ALIGNMENT_LEFT)
 	save_line.position = Vector2(20, 78)
 	save_line.size = Vector2(760, 22)
 	overview.add_child(save_line)
@@ -1609,16 +1609,43 @@ func _save_game(show_notice: bool) -> void:
 	_check_achievements()
 	var save_data: Dictionary = save_rules.build_snapshot(_current_save_state(), Time.get_unix_time_from_system())
 	var save_path := _save_file_path()
-	DirAccess.make_dir_recursive_absolute(save_path.get_base_dir())
-	var file := FileAccess.open(save_path, FileAccess.WRITE)
-	if file == null:
+	if not _write_save_snapshot(save_path, save_data):
+		if save_status_label != null:
+			save_status_label.text = "Save Error"
 		return
-	file.store_string(JSON.stringify(save_data))
 	autosave_timer = 0.0
 	if show_notice:
 		save_notice_timer = 2.0
 		if save_status_label != null:
 			save_status_label.text = "Saved"
+
+
+func _write_save_snapshot(save_path: String, save_data: Dictionary) -> bool:
+	if DirAccess.make_dir_recursive_absolute(save_path.get_base_dir()) != OK:
+		return false
+	var temp_path := save_path + ".tmp"
+	var backup_path := save_path + ".bak"
+	var file := FileAccess.open(temp_path, FileAccess.WRITE)
+	if file == null:
+		return false
+	file.store_string(JSON.stringify(save_data))
+	file.flush()
+	file = null
+	if FileAccess.file_exists(save_path):
+		if _read_save_snapshot(save_path).is_empty():
+			DirAccess.remove_absolute(save_path)
+		else:
+			if FileAccess.file_exists(backup_path):
+				DirAccess.remove_absolute(backup_path)
+			if DirAccess.rename_absolute(save_path, backup_path) != OK:
+				DirAccess.remove_absolute(temp_path)
+				return false
+	if DirAccess.rename_absolute(temp_path, save_path) != OK:
+		if FileAccess.file_exists(backup_path):
+			DirAccess.rename_absolute(backup_path, save_path)
+		DirAccess.remove_absolute(temp_path)
+		return false
+	return true
 
 
 func _current_save_state() -> Dictionary:
@@ -1654,15 +1681,13 @@ func _save_before_exit() -> void:
 
 func _load_game() -> bool:
 	var save_path := _save_file_path()
-	if not FileAccess.file_exists(save_path):
+	var data := _read_save_snapshot(save_path)
+	var recovered_backup := false
+	if data.is_empty():
+		data = _read_save_snapshot(save_path + ".bak")
+		recovered_backup = not data.is_empty()
+	if data.is_empty():
 		return false
-	var file := FileAccess.open(save_path, FileAccess.READ)
-	if file == null:
-		return false
-	var parsed = JSON.parse_string(file.get_as_text())
-	if typeof(parsed) != TYPE_DICTIONARY:
-		return false
-	var data: Dictionary = parsed
 	materials = _merge_default_dictionary(rules.starting_materials(), data.get("materials", {}))
 	heroes = _load_array(data.get("heroes", []))
 	inventory = _load_array(data.get("inventory", []))
@@ -1670,7 +1695,7 @@ func _load_game() -> bool:
 	unlocked_talents = _load_string_array(data.get("unlocked_talents", []))
 	unlocked_achievements = _load_string_array(data.get("unlocked_achievements", []))
 	owned_relics = _load_string_array(data.get("owned_relics", []))
-	battle_log = ["Loaded save. Battle restarted at wave 1."]
+	battle_log = ["Recovered backup save." if recovered_backup else "Loaded save.", "Battle restarted at wave 1."]
 	selected_tab = String(data.get("selected_tab", "Battle"))
 	if not TAB_NAMES.has(selected_tab):
 		selected_tab = "Battle"
@@ -1697,6 +1722,15 @@ func _load_game() -> bool:
 	_apply_offline_progress(float(data.get("saved_at", 0.0)))
 	autosave_timer = 0.0
 	return true
+
+
+func _read_save_snapshot(save_path: String) -> Dictionary:
+	if not FileAccess.file_exists(save_path):
+		return {}
+	var file := FileAccess.open(save_path, FileAccess.READ)
+	if file == null:
+		return {}
+	return save_rules.parse_snapshot_text(file.get_as_text())
 
 
 func _achievement_progress() -> Dictionary:
@@ -1811,7 +1845,7 @@ func _apply_offline_progress(saved_at: float) -> void:
 	var elapsed: int = int(Time.get_unix_time_from_system() - saved_at)
 	if elapsed < 30:
 		return
-	var rewarded_seconds: int = min(elapsed, OFFLINE_REWARD_CAP_SECONDS)
+	var rewarded_seconds: int = min(elapsed, _offline_reward_cap_seconds())
 	var reward_cycles: int = max(1, int(rewarded_seconds / 45))
 	var stage_for_rewards: int = max(1, min(stage_index, best_stage + 1))
 	var combined: Dictionary = {}
@@ -1827,6 +1861,10 @@ func _apply_offline_progress(saved_at: float) -> void:
 		combined[key] = int(float(combined[key]) * min(2.0, 0.75 + speed_multiplier * 0.25))
 	_add_materials(combined)
 	_add_log("Away %s: %s" % [_format_duration(rewarded_seconds), _format_cost(combined, true)])
+
+
+func _offline_reward_cap_seconds() -> int:
+	return OFFLINE_REWARD_CAP_SECONDS + maxi(0, int(buildings.get("observatory", 1)) - 1) * 3600
 
 
 func _format_duration(seconds: int) -> String:
