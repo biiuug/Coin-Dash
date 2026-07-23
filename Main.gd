@@ -883,6 +883,8 @@ func _tick_battle(delta: float) -> void:
 	for hero in living:
 		var stats: Dictionary = rules.hero_stats(hero, inventory, buildings, unlocked_talents)
 		damage += max(1.0, float(stats["atk"]) * float(stats["speed"]) * float(stats["skill_power"])) * delta * speed_bonus
+	if is_boss and unlocked_talents.has("boss_breaker"):
+		damage *= 1.15
 	enemy_hp -= damage
 	if damage > 0.1:
 		enemy_flash = 0.08
@@ -904,7 +906,10 @@ func _complete_wave() -> void:
 	_add_materials(rewards)
 	_add_log("Wave %d: %s" % [current_wave, _format_cost(rewards, true)])
 	for hero in _active_heroes():
-		hero["xp"] = int(hero.get("xp", 0)) + 8 + stage_index
+		var xp_gain := 8 + stage_index
+		if unlocked_talents.has("veteran_trainers"):
+			xp_gain = int(float(xp_gain) * 1.15)
+		hero["xp"] = int(hero.get("xp", 0)) + xp_gain
 	var stage: Dictionary = rules.get_stage(stage_index)
 	var boss_wave: bool = current_wave >= int(stage["wave_count"])
 	if boss_wave or ((current_wave + stage_index) % 4 == 0):

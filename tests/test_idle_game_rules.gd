@@ -15,6 +15,8 @@ func _ready() -> void:
 	_test_market_service_trades_supplies_for_gold(rules)
 	_test_shrine_service_improves_with_level(rules)
 	_test_every_resource_has_a_visual_definition(rules)
+	_test_talent_tree_has_branch_depth(rules)
+	_test_new_talents_change_rewards_and_stats(rules)
 	_test_enemy_sprite_regions_match_the_sheet_grid(rules)
 	_test_building_sprite_regions_match_the_sheet_grid(rules)
 	_test_enemy_animation_cycle_uses_combat_frames(rules)
@@ -108,6 +110,34 @@ func _test_every_resource_has_a_visual_definition(rules) -> void:
 		_assert_false(symbols.has(symbol), "%s visual symbol is distinct" % [resource_name])
 		_assert_true(visual.get("color", null) is Color, "%s visual has a color" % [resource_name])
 		symbols.append(symbol)
+
+
+func _test_talent_tree_has_branch_depth(rules) -> void:
+	var branches := {}
+	for talent in rules.TALENTS:
+		var branch := String(talent["branch"])
+		branches[branch] = int(branches.get(branch, 0)) + 1
+	for branch_name in ["Combat", "Economy", "Loot", "Automation", "Class"]:
+		_assert_true(int(branches.get(branch_name, 0)) >= 2, "%s branch has multiple talents" % [branch_name])
+
+
+func _test_new_talents_change_rewards_and_stats(rules) -> void:
+	var boss_wave: int = int(rules.get_stage(10)["wave_count"])
+	var no_talents: Array[String] = []
+	var essence_talents: Array[String] = ["essence_lure"]
+	var salvage_talents: Array[String] = ["careful_salvage"]
+	var medic_talents: Array[String] = ["field_medic"]
+	var ordinary: Dictionary = rules.wave_rewards(10, boss_wave, {"market": 1}, no_talents)
+	var lured: Dictionary = rules.wave_rewards(10, boss_wave, {"market": 1}, essence_talents)
+	_assert_true(int(lured["essence"]) > int(ordinary["essence"]), "essence lure increases boss essence")
+	var item: Dictionary = rules.generate_equipment(12, 4)
+	var base_salvage: Dictionary = rules.salvage_value(item, no_talents)
+	var careful_salvage: Dictionary = rules.salvage_value(item, salvage_talents)
+	_assert_true(int(careful_salvage["ore"]) > int(base_salvage["ore"]), "careful salvage increases ore yield")
+	var hero: Dictionary = rules.create_hero(rules.HEROES[0])
+	var base_stats: Dictionary = rules.hero_stats(hero, [], {"infirmary": 1}, no_talents)
+	var medic_stats: Dictionary = rules.hero_stats(hero, [], {"infirmary": 1}, medic_talents)
+	_assert_true(int(medic_stats["hp"]) > int(base_stats["hp"]), "field medic increases hero HP")
 
 
 func _test_enemy_sprite_regions_match_the_sheet_grid(rules) -> void:

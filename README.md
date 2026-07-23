@@ -17,7 +17,7 @@ A compact Godot 4 desktop idle auto-fighter prototype. The game runs around a sm
 - Six camp buildings: Forge, Workshop, Academy, Infirmary, Market, and Shrine.
 - Six distinct camp services for crafting, junk sorting, hero training, team recovery, supply trading, and essence distilling.
 - Camp screen with visible resource-icon service and upgrade costs plus an affordable upgrade-all action.
-- Talent branches for combat, economy, loot, automation, and class growth.
+- Expanded talent branches for combat, economy, loot, automation, and class growth, including boss damage, salvage yield, essence gain, and team sustain bonuses.
 - Stage list showing material sources and item level ranges so higher fights drop better loot.
 - Scrollable stage selection so every unlocked region remains reachable in the compact window.
 - Manual save/load/new game controls plus periodic autosave.

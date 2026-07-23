@@ -188,13 +188,19 @@ const BUILDINGS := {
 const TALENTS := [
 	{"id": "battle_rhythm", "name": "Battle Rhythm", "branch": "Combat", "cost": {"essence": 3}, "text": "+8% attack speed.", "effect": "speed"},
 	{"id": "shared_guard", "name": "Shared Guard", "branch": "Combat", "cost": {"essence": 5}, "text": "+10 team defense.", "effect": "def"},
+	{"id": "boss_breaker", "name": "Boss Breaker", "branch": "Combat", "cost": {"essence": 7, "ore": 45}, "text": "+15% boss damage.", "effect": "boss_damage"},
 	{"id": "merchant_routes", "name": "Merchant Routes", "branch": "Economy", "cost": {"essence": 4, "gold": 250}, "text": "+15% gold gain.", "effect": "gold"},
 	{"id": "packed_supplies", "name": "Packed Supplies", "branch": "Economy", "cost": {"essence": 5, "wood": 30}, "text": "+12% material gain.", "effect": "materials"},
+	{"id": "veteran_trainers", "name": "Veteran Trainers", "branch": "Economy", "cost": {"essence": 7, "ink": 42}, "text": "+15% combat XP.", "effect": "xp"},
 	{"id": "rare_find", "name": "Rare Find", "branch": "Loot", "cost": {"essence": 6, "ink": 30}, "text": "+4% rare equipment chance.", "effect": "rarity"},
 	{"id": "shard_scent", "name": "Shard Scent", "branch": "Loot", "cost": {"essence": 7, "shards": 4}, "text": "+3% class shard chance.", "effect": "shards"},
+	{"id": "careful_salvage", "name": "Careful Salvage", "branch": "Loot", "cost": {"essence": 8, "dust": 25}, "text": "+15% salvage yield.", "effect": "salvage"},
+	{"id": "essence_lure", "name": "Essence Lure", "branch": "Loot", "cost": {"essence": 9, "fragments": 2}, "text": "+1 boss essence.", "effect": "essence"},
 	{"id": "filter_junk", "name": "Filter Junk", "branch": "Automation", "cost": {"essence": 5, "ore": 30}, "text": "Unlock auto-salvage filter.", "effect": "automation"},
 	{"id": "smart_farm", "name": "Smart Farm", "branch": "Automation", "cost": {"essence": 8, "ink": 50}, "text": "Improves farm stage efficiency.", "effect": "farm"},
+	{"id": "field_medic", "name": "Field Medic", "branch": "Automation", "cost": {"essence": 8, "herbs": 60}, "text": "+8% team HP.", "effect": "hp"},
 	{"id": "class_drill", "name": "Class Drill", "branch": "Class", "cost": {"essence": 6, "shards": 8}, "text": "-10% class rank costs.", "effect": "class"},
+	{"id": "elite_doctrine", "name": "Elite Doctrine", "branch": "Class", "cost": {"essence": 12, "shards": 18, "ink": 70}, "text": "+6% rank stat scaling.", "effect": "rank_stats"},
 ]
 
 const REGIONS := [
@@ -401,6 +407,11 @@ func hero_stats(hero: Dictionary, inventory: Array, buildings: Dictionary, unloc
 		stats["speed"] += 0.08
 	if unlocked_talents.has("shared_guard"):
 		stats["def"] += 10
+	if unlocked_talents.has("field_medic"):
+		stats["hp"] = int(float(stats["hp"]) * 1.08)
+	if unlocked_talents.has("elite_doctrine"):
+		stats["atk"] = int(float(stats["atk"]) * 1.06)
+		stats["def"] = int(float(stats["def"]) * 1.06)
 	var infirmary_level: int = int(buildings.get("infirmary", 1))
 	stats["hp"] += infirmary_level * 18
 	for slot in SLOTS:
@@ -521,6 +532,8 @@ func wave_rewards(stage_index: int, wave: int, buildings: Dictionary, talents: A
 		rewards["dust"] += 2 + int(stage_index / 3)
 	if wave >= int(stage["wave_count"]):
 		rewards["essence"] += 1 + int(stage_index / 10)
+		if talents.has("essence_lure"):
+			rewards["essence"] += 1
 		rewards["shards"] += 1 + (1 if talents.has("shard_scent") else 0)
 		if stage_index >= 10:
 			rewards["fragments"] += 1
