@@ -26,6 +26,8 @@ func _ready() -> void:
 	_test_elites_and_bosses_have_distinct_rewards(rules)
 	_test_region_gear_sets_and_drop_rules(rules)
 	_test_equipment_sets_and_advancements_change_stats(rules)
+	_test_achievement_catalog_and_completion(rules)
+	_test_combat_xp_levels_and_caps_heroes(rules)
 	if failures == 0:
 		print("IDLE_RULES_TEST_PASS")
 	else:
@@ -242,6 +244,31 @@ func _test_equipment_sets_and_advancements_change_stats(rules) -> void:
 	var set_stats: Dictionary = rules.hero_stats(hero, inventory, {"infirmary": 1}, no_talents)
 	_assert_true(float(set_stats["speed"]) > float(advanced["speed"]), "three-piece set raises speed")
 	_assert_true(float(set_stats["crit"]) > float(advanced["crit"]), "three-piece set raises crit")
+
+
+func _test_achievement_catalog_and_completion(rules) -> void:
+	_assert_true(rules.ACHIEVEMENTS.size() >= 15, "achievement catalog has long-term depth")
+	var ids: Array[String] = []
+	for achievement in rules.ACHIEVEMENTS:
+		var achievement_id := String(achievement["id"])
+		_assert_false(ids.has(achievement_id), "achievement IDs are unique")
+		_assert_false((achievement["reward"] as Dictionary).is_empty(), "%s has a reward" % [achievement_id])
+		ids.append(achievement_id)
+	var finale: Dictionary = rules.ACHIEVEMENTS[5]
+	_assert_false(rules.achievement_complete(finale, {"best_stage": 119}), "finale remains locked before stage 120")
+	_assert_true(rules.achievement_complete(finale, {"best_stage": 120}), "finale unlocks at stage 120")
+
+
+func _test_combat_xp_levels_and_caps_heroes(rules) -> void:
+	var hero: Dictionary = rules.create_hero(rules.HEROES[0])
+	var needed: int = rules.hero_xp_to_next(1)
+	_assert_equal(rules.grant_hero_xp(hero, needed - 1), 0, "partial XP does not level a hero")
+	_assert_equal(rules.grant_hero_xp(hero, 1), 1, "reaching the XP threshold levels a hero")
+	_assert_equal(hero["level"], 2, "XP level is applied to durable hero state")
+	hero["level"] = rules.MAX_HERO_LEVEL
+	hero["xp"] = 50
+	_assert_equal(rules.grant_hero_xp(hero, 9999), 0, "max-level hero gains no extra levels")
+	_assert_equal(hero["xp"], 0, "max-level hero does not retain useless XP")
 
 
 func _fail(message: String) -> void:

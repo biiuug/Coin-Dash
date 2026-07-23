@@ -19,6 +19,8 @@ A Godot 4 desktop idle auto-fighter. Heroes fight automatically, earn resources 
 - Camp screen with visible resource-icon service and upgrade costs plus an affordable upgrade-all action.
 - Expanded talent branches for combat, economy, loot, automation, and class growth, including boss damage, salvage yield, essence gain, and team sustain bonuses.
 - Stage list showing all 120 fights, regional sets, material sources, and item level ranges so higher fights drop better loot.
+- Fifteen persistent campaign records with one-time resource rewards and progress tracking.
+- Combat XP now levels heroes automatically up to level 100; camp training remains an accelerated upgrade path.
 - Scrollable stage selection so every unlocked region remains reachable in the compact window.
 - Manual save/load/new game controls plus periodic autosave.
 - New-game confirmation before the current autosave is replaced.

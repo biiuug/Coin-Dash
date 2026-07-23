@@ -3,6 +3,7 @@ extends RefCounted
 const RESOURCE_ORDER: Array[String] = ["gold", "wood", "ore", "herbs", "ink", "dust", "essence", "shards", "fragments"]
 const MAX_STAGE := 120
 const INVENTORY_CAP := 120
+const MAX_HERO_LEVEL := 100
 
 const RESOURCE_VISUALS := {
 	"gold": {"symbol": "coin", "color": Color(0.94, 0.72, 0.20)},
@@ -205,6 +206,24 @@ const TALENTS := [
 	{"id": "elite_doctrine", "name": "Elite Doctrine", "branch": "Class", "cost": {"essence": 12, "shards": 18, "ink": 70}, "text": "+6% rank stat scaling.", "effect": "rank_stats"},
 ]
 
+const ACHIEVEMENTS := [
+	{"id": "first_push", "name": "Beyond the Gate", "text": "Clear stage 2.", "metric": "best_stage", "target": 2, "reward": {"gold": 120}},
+	{"id": "road_veteran", "name": "Road Veteran", "text": "Clear stage 10.", "metric": "best_stage", "target": 10, "reward": {"shards": 4, "gold": 300}},
+	{"id": "frontier_scout", "name": "Frontier Scout", "text": "Clear stage 25.", "metric": "best_stage", "target": 25, "reward": {"essence": 5, "ink": 40}},
+	{"id": "halfway", "name": "Halfway to Heaven", "text": "Clear stage 60.", "metric": "best_stage", "target": 60, "reward": {"fragments": 8, "shards": 14}},
+	{"id": "voidwalker", "name": "Voidwalker", "text": "Clear stage 110.", "metric": "best_stage", "target": 110, "reward": {"essence": 20, "fragments": 20}},
+	{"id": "crown_of_stars", "name": "Crown of Stars", "text": "Complete stage 120.", "metric": "best_stage", "target": 120, "reward": {"gold": 12000, "essence": 40}},
+	{"id": "well_equipped", "name": "Well Equipped", "text": "Own 25 pieces of equipment.", "metric": "inventory", "target": 25, "reward": {"ore": 120, "dust": 30}},
+	{"id": "quartermaster", "name": "Quartermaster", "text": "Own 75 pieces of equipment.", "metric": "inventory", "target": 75, "reward": {"ore": 300, "fragments": 10}},
+	{"id": "growing_camp", "name": "Growing Camp", "text": "Reach 12 total building levels.", "metric": "building_levels", "target": 12, "reward": {"wood": 160, "gold": 500}},
+	{"id": "master_builder", "name": "Master Builder", "text": "Max every camp building.", "metric": "building_levels", "target": 30, "reward": {"fragments": 18, "essence": 12}},
+	{"id": "student", "name": "Shrine Student", "text": "Unlock 5 talents.", "metric": "talents", "target": 5, "reward": {"essence": 8}},
+	{"id": "sage", "name": "Shrine Sage", "text": "Unlock every talent.", "metric": "talents", "target": 15, "reward": {"shards": 24, "essence": 20}},
+	{"id": "seasoned", "name": "Seasoned Hero", "text": "Raise a hero to level 20.", "metric": "hero_level", "target": 20, "reward": {"gold": 1600, "herbs": 120}},
+	{"id": "advanced_class", "name": "A Higher Calling", "text": "Advance a hero at rank 5.", "metric": "advanced_heroes", "target": 1, "reward": {"shards": 20, "ink": 100}},
+	{"id": "treasury", "name": "Full Treasury", "text": "Hold 10,000 gold.", "metric": "gold", "target": 10000, "reward": {"fragments": 6, "dust": 80}},
+]
+
 const REGIONS := [
 	{"name": "Meadow Road", "materials": ["wood", "herbs"], "enemies": ["Slime", "Wolf"], "boss": "Moss Alpha", "set": "Wayfarer", "gear": ["Trailblade", "Hidecoat", "Lucky Acorn"]},
 	{"name": "Iron Mine", "materials": ["ore", "dust"], "enemies": ["Mole", "Golem"], "boss": "Orebreaker", "set": "Deepdelver", "gear": ["Iron Pick", "Riveted Plate", "Miner's Lamp"]},
@@ -377,6 +396,14 @@ func get_talent(talent_id: String) -> Dictionary:
 	return {}
 
 
+func achievement_value(achievement: Dictionary, progress: Dictionary) -> int:
+	return maxi(0, int(progress.get(String(achievement.get("metric", "")), 0)))
+
+
+func achievement_complete(achievement: Dictionary, progress: Dictionary) -> bool:
+	return achievement_value(achievement, progress) >= int(achievement.get("target", 1))
+
+
 func get_stage(stage_index: int) -> Dictionary:
 	stage_index = clampi(stage_index, 1, MAX_STAGE)
 	var region_index: int = int((stage_index - 1) / 10)
@@ -472,7 +499,31 @@ func can_salvage_item(item: Dictionary, equipped: bool) -> bool:
 
 func hero_level_cost(hero: Dictionary) -> Dictionary:
 	var level: int = int(hero["level"])
+	if level >= MAX_HERO_LEVEL:
+		return {}
 	return {"gold": 50 + level * 32, "herbs": 2 + int(level / 4)}
+
+
+func hero_xp_to_next(level: int) -> int:
+	return 60 + clampi(level, 1, MAX_HERO_LEVEL) * 30
+
+
+func grant_hero_xp(hero: Dictionary, amount: int) -> int:
+	if int(hero.get("level", 1)) >= MAX_HERO_LEVEL:
+		hero["xp"] = 0
+		return 0
+	hero["xp"] = int(hero.get("xp", 0)) + maxi(0, amount)
+	var levels_gained := 0
+	while int(hero["level"]) < MAX_HERO_LEVEL:
+		var needed := hero_xp_to_next(int(hero["level"]))
+		if int(hero["xp"]) < needed:
+			break
+		hero["xp"] = int(hero["xp"]) - needed
+		hero["level"] = int(hero["level"]) + 1
+		levels_gained += 1
+	if int(hero["level"]) >= MAX_HERO_LEVEL:
+		hero["xp"] = 0
+	return levels_gained
 
 
 func skill_cost(hero: Dictionary) -> Dictionary:

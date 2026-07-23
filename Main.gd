@@ -13,7 +13,7 @@ const ACCENT := Color(0.78, 0.63, 0.32)
 const GOOD := Color(0.32, 0.78, 0.42)
 const BAD := Color(0.82, 0.24, 0.24)
 const BLUE := Color(0.32, 0.55, 0.92)
-const TAB_NAMES: Array[String] = ["Guide", "Battle", "Heroes", "Equipment", "Buildings", "Talents", "Stages"]
+const TAB_NAMES: Array[String] = ["Guide", "Battle", "Heroes", "Equipment", "Buildings", "Talents", "Stages", "Records"]
 const CLASS_ATLAS_ORDER: Array[String] = ["warrior", "ranger", "cleric", "rogue", "mage", "paladin", "druid", "artificer", "necromancer", "monk"]
 const EQUIPMENT_ATLAS_SLOTS: Array[String] = ["weapon", "armor", "trinket"]
 const EQUIPMENT_ATLAS_RARITIES: Array[String] = ["Common", "Uncommon", "Rare", "Epic", "Legendary"]
@@ -30,6 +30,7 @@ var heroes: Array = []
 var inventory: Array = []
 var buildings: Dictionary = {}
 var unlocked_talents: Array[String] = []
+var unlocked_achievements: Array[String] = []
 var battle_log: Array[String] = []
 
 var selected_tab: String = "Battle"
@@ -208,7 +209,7 @@ func _build_shell() -> void:
 	tab_bar.add_theme_constant_override("separation", 8)
 	root.add_child(tab_bar)
 	for tab_name in TAB_NAMES:
-		var button := _make_button(tab_name, Vector2(114, 34), selected_tab == tab_name)
+		var button := _make_button(tab_name, Vector2(104, 34), selected_tab == tab_name)
 		button.pressed.connect(_on_tab_pressed.bind(tab_name))
 		tab_bar.add_child(button)
 
@@ -241,8 +242,10 @@ func _refresh_ui() -> void:
 		_build_buildings_tab()
 	elif selected_tab == "Talents":
 		_build_talents_tab()
-	else:
+	elif selected_tab == "Stages":
 		_build_stages_tab()
+	else:
+		_build_records_tab()
 
 
 func _refresh_resources() -> void:
@@ -869,6 +872,49 @@ func _build_stages_tab() -> void:
 		y += 42
 
 
+func _build_records_tab() -> void:
+	var title := _make_label("Campaign Records", 24, ACCENT, HORIZONTAL_ALIGNMENT_LEFT)
+	title.position = Vector2(6, 0)
+	title.size = Vector2(320, 32)
+	content.add_child(title)
+	var summary := _make_label("%d / %d complete" % [unlocked_achievements.size(), rules.ACHIEVEMENTS.size()], 15, TEXT_MUTED, HORIZONTAL_ALIGNMENT_RIGHT)
+	summary.position = Vector2(790, 4)
+	summary.size = Vector2(270, 26)
+	content.add_child(summary)
+	var scroll := ScrollContainer.new()
+	scroll.position = Vector2(0, 42)
+	scroll.size = Vector2(1072, 458)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	content.add_child(scroll)
+	var rows := int(ceil(float(rules.ACHIEVEMENTS.size()) / 2.0))
+	var record_list := Control.new()
+	record_list.custom_minimum_size = Vector2(1054, rows * 104)
+	scroll.add_child(record_list)
+	var progress := _achievement_progress()
+	for index in range(rules.ACHIEVEMENTS.size()):
+		var achievement: Dictionary = rules.ACHIEVEMENTS[index]
+		var completed := unlocked_achievements.has(String(achievement["id"]))
+		var col := index % 2
+		var row := int(index / 2)
+		var card := _panel(Vector2(col * 526, row * 104), Vector2(512, 94))
+		record_list.add_child(card)
+		var mark := _make_label("DONE" if completed else "%d/%d" % [min(rules.achievement_value(achievement, progress), int(achievement["target"])), int(achievement["target"])], 13, GOOD if completed else TEXT_MUTED, HORIZONTAL_ALIGNMENT_RIGHT)
+		mark.position = Vector2(390, 10)
+		mark.size = Vector2(104, 22)
+		card.add_child(mark)
+		var name_label := _make_label(String(achievement["name"]), 17, GOOD if completed else TEXT_MAIN, HORIZONTAL_ALIGNMENT_LEFT)
+		name_label.position = Vector2(14, 8)
+		name_label.size = Vector2(360, 24)
+		card.add_child(name_label)
+		var description := _make_label(String(achievement["text"]), 13, TEXT_MUTED, HORIZONTAL_ALIGNMENT_LEFT)
+		description.position = Vector2(14, 34)
+		description.size = Vector2(300, 22)
+		card.add_child(description)
+		var value := rules.achievement_value(achievement, progress)
+		card.add_child(_make_bar(Vector2(14, 62), Vector2(286, 10), value, int(achievement["target"]), GOOD if completed else BLUE))
+		_add_reward_row(card, achievement["reward"], Vector2(320, 52), 2)
+
+
 func _tick_battle(delta: float) -> void:
 	if battle_paused:
 		return
@@ -920,7 +966,9 @@ func _complete_wave() -> void:
 		var xp_gain := 8 + stage_index
 		if unlocked_talents.has("veteran_trainers"):
 			xp_gain = int(float(xp_gain) * 1.15)
-		hero["xp"] = int(hero.get("xp", 0)) + xp_gain
+		var levels_gained: int = rules.grant_hero_xp(hero, xp_gain)
+		if levels_gained > 0:
+			_add_log("%s reached Lv.%d." % [String(hero["name"]), int(hero["level"])])
 	var stage: Dictionary = rules.get_stage(stage_index)
 	var boss_wave: bool = current_wave >= int(stage["wave_count"])
 	item_roll_counter += 1
@@ -1091,6 +1139,7 @@ func _on_new_game() -> void:
 	inventory.clear()
 	buildings.clear()
 	unlocked_talents.clear()
+	unlocked_achievements.clear()
 	battle_log.clear()
 	selected_tab = "Battle"
 	selected_hero = 0
@@ -1163,6 +1212,9 @@ func _on_hero_selected(index: int) -> void:
 
 func _on_level_hero() -> void:
 	var hero: Dictionary = heroes[selected_hero]
+	if int(hero["level"]) >= rules.MAX_HERO_LEVEL:
+		_spawn_float("Max level", ACCENT)
+		return
 	var cost: Dictionary = rules.hero_level_cost(hero)
 	if not rules.can_afford(cost, materials):
 		_spawn_float("Need resources", BAD)
@@ -1458,6 +1510,7 @@ func _on_stage_selected(index: int) -> void:
 
 
 func _save_game(show_notice: bool) -> void:
+	_check_achievements()
 	var save_data: Dictionary = save_rules.build_snapshot(_current_save_state(), Time.get_unix_time_from_system())
 	var save_path := _save_file_path()
 	DirAccess.make_dir_recursive_absolute(save_path.get_base_dir())
@@ -1479,6 +1532,7 @@ func _current_save_state() -> Dictionary:
 		"inventory": inventory,
 		"buildings": buildings,
 		"unlocked_talents": unlocked_talents,
+		"unlocked_achievements": unlocked_achievements,
 		"selected_tab": selected_tab,
 		"selected_hero": selected_hero,
 		"selected_item": selected_item,
@@ -1517,6 +1571,7 @@ func _load_game() -> bool:
 	inventory = _load_array(data.get("inventory", []))
 	buildings = _merge_default_buildings(data.get("buildings", {}))
 	unlocked_talents = _load_string_array(data.get("unlocked_talents", []))
+	unlocked_achievements = _load_string_array(data.get("unlocked_achievements", []))
 	battle_log = ["Loaded save. Battle restarted at wave 1."]
 	selected_tab = String(data.get("selected_tab", "Battle"))
 	if not TAB_NAMES.has(selected_tab):
@@ -1544,6 +1599,40 @@ func _load_game() -> bool:
 	_apply_offline_progress(float(data.get("saved_at", 0.0)))
 	autosave_timer = 0.0
 	return true
+
+
+func _achievement_progress() -> Dictionary:
+	var building_levels := 0
+	for level in buildings.values():
+		building_levels += int(level)
+	var highest_level := 1
+	var advanced_heroes := 0
+	for hero in heroes:
+		highest_level = maxi(highest_level, int(hero.get("level", 1)))
+		if not String(hero.get("advanced", "")).is_empty():
+			advanced_heroes += 1
+	return {
+		"best_stage": best_stage,
+		"inventory": inventory.size(),
+		"building_levels": building_levels,
+		"talents": unlocked_talents.size(),
+		"hero_level": highest_level,
+		"advanced_heroes": advanced_heroes,
+		"gold": int(materials.get("gold", 0)),
+	}
+
+
+func _check_achievements() -> void:
+	var progress := _achievement_progress()
+	for achievement in rules.ACHIEVEMENTS:
+		var achievement_id := String(achievement["id"])
+		if unlocked_achievements.has(achievement_id) or not rules.achievement_complete(achievement, progress):
+			continue
+		unlocked_achievements.append(achievement_id)
+		_add_materials(achievement["reward"])
+		_add_log("Record: %s" % [String(achievement["name"])])
+		if is_instance_valid(floating_layer):
+			_spawn_float("Achievement: %s" % [String(achievement["name"])], ACCENT)
 
 
 func _save_file_path() -> String:
@@ -1798,10 +1887,34 @@ func _add_resource_cost_row(parent: Control, cost: Dictionary, pos: Vector2, max
 		shown += 1
 
 
+func _add_reward_row(parent: Control, reward: Dictionary, pos: Vector2, max_items: int) -> void:
+	var row := HBoxContainer.new()
+	row.position = pos
+	row.size = Vector2(180, 28)
+	row.add_theme_constant_override("separation", 8)
+	parent.add_child(row)
+	var shown := 0
+	for resource_name in rules.RESOURCE_ORDER:
+		if not reward.has(resource_name) or shown >= max_items:
+			continue
+		var group := HBoxContainer.new()
+		group.add_theme_constant_override("separation", 3)
+		var icon := TextureRect.new()
+		icon.custom_minimum_size = Vector2(20, 20)
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.texture = _resource_atlas(resource_name)
+		icon.tooltip_text = String(resource_name).capitalize()
+		group.add_child(icon)
+		group.add_child(_make_label("+%d" % [int(reward[resource_name])], 12, GOOD, HORIZONTAL_ALIGNMENT_LEFT))
+		row.add_child(group)
+		shown += 1
+
+
 func _hero_tooltip(hero: Dictionary, stats: Dictionary) -> String:
 	var class_data: Dictionary = rules.get_class_data(String(hero["class_id"]))
 	var path := String(hero.get("advanced", ""))
-	return "%s\n%s%s\nHP %d  ATK %d  DEF %d\nSpeed %.2f  Crit %.1f%%\nSkill: %s Lv.%d" % [
+	return "%s\n%s%s\nHP %d  ATK %d  DEF %d\nSpeed %.2f  Crit %.1f%%\nXP %d/%d  Skill: %s Lv.%d" % [
 		String(hero["name"]),
 		String(class_data["role"]),
 		" | %s" % [path] if not path.is_empty() else "",
@@ -1810,6 +1923,8 @@ func _hero_tooltip(hero: Dictionary, stats: Dictionary) -> String:
 		int(stats["def"]),
 		float(stats["speed"]),
 		float(stats["crit"]) * 100.0,
+		int(hero.get("xp", 0)),
+		rules.hero_xp_to_next(int(hero["level"])),
 		String(class_data["skill"]),
 		int(hero["skill_level"])
 	]

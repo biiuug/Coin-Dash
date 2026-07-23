@@ -1,12 +1,13 @@
 class_name SaveGameRules
 extends RefCounted
 
-const SAVE_VERSION := 2
+const SAVE_VERSION := 3
 const DURABLE_STATE_KEYS := [
 	"materials",
 	"inventory",
 	"buildings",
 	"unlocked_talents",
+	"unlocked_achievements",
 	"selected_tab",
 	"selected_hero",
 	"selected_item",

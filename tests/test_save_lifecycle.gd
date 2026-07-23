@@ -47,6 +47,7 @@ func _write_fixture() -> void:
 		"inventory": [rules.generate_equipment(7, 2)],
 		"buildings": {"forge": 4, "academy": 3},
 		"unlocked_talents": ["class_drill"],
+		"unlocked_achievements": ["first_push"],
 		"selected_tab": "Heroes",
 		"selected_hero": 0,
 		"selected_item": 0,
@@ -77,6 +78,7 @@ func _test_automatic_load(game) -> void:
 	_assert_equal(game.buildings["forge"], 4, "building level auto-loads")
 	_assert_equal(game.best_stage, 8, "stage progress auto-loads")
 	_assert_equal(game.stage_index, 7, "selected stage auto-loads")
+	_assert_equal(game.unlocked_achievements, ["first_push"], "claimed achievements auto-load")
 	_assert_equal(game.current_wave, 1, "wave progress resets on load")
 	_assert_equal(game.heroes[0]["hp"], game.heroes[0]["max_hp"], "hero starts at full health")
 
