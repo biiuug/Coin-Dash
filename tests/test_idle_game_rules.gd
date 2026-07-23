@@ -1,0 +1,185 @@
+extends Node
+
+const IdleGameRules = preload("res://IdleGameRules.gd")
+
+var failures := 0
+
+
+func _ready() -> void:
+	var rules := IdleGameRules.new()
+	_test_stage_loot_scales(rules)
+	_test_team_slots_follow_academy_level(rules)
+	_test_class_discount_reduces_rank_cost(rules)
+	_test_locked_or_equipped_items_cannot_be_salvaged(rules)
+	_test_every_facility_has_a_distinct_service(rules)
+	_test_market_service_trades_supplies_for_gold(rules)
+	_test_shrine_service_improves_with_level(rules)
+	_test_every_resource_has_a_visual_definition(rules)
+	_test_enemy_sprite_regions_match_the_sheet_grid(rules)
+	_test_building_sprite_regions_match_the_sheet_grid(rules)
+	_test_enemy_animation_cycle_uses_combat_frames(rules)
+	_test_enemy_names_map_to_matching_visual_families(rules)
+	_test_building_names_map_to_matching_art_columns(rules)
+	if failures == 0:
+		print("IDLE_RULES_TEST_PASS")
+	else:
+		push_error("Idle rules tests failed: %d" % [failures])
+	get_tree().quit(0 if failures == 0 else 1)
+
+
+func _test_stage_loot_scales(rules) -> void:
+	var early: Dictionary = rules.get_stage(1)
+	var late: Dictionary = rules.get_stage(21)
+	_assert_true(int(late["item_min"]) > int(early["item_min"]), "later stages raise minimum item level")
+	_assert_true(int(late["item_max"]) > int(early["item_max"]), "later stages raise maximum item level")
+	var item: Dictionary = rules.generate_equipment(21, 4)
+	_assert_true(int(item["level"]) >= int(late["item_min"]), "generated item respects stage minimum")
+	_assert_true(int(item["level"]) <= int(late["item_max"]), "generated item respects stage maximum")
+
+
+func _test_team_slots_follow_academy_level(rules) -> void:
+	_assert_equal(rules.team_slots({"academy": 1}), 2, "academy level one starts with two heroes")
+	_assert_equal(rules.team_slots({"academy": 2}), 3, "academy level two unlocks a third hero")
+	_assert_equal(rules.team_slots({"academy": 5}), 5, "academy level five unlocks the full team")
+
+
+func _test_class_discount_reduces_rank_cost(rules) -> void:
+	var hero: Dictionary = rules.create_hero(rules.HEROES[0])
+	var normal: Dictionary = rules.class_rank_cost(hero, false)
+	var discounted: Dictionary = rules.class_rank_cost(hero, true)
+	_assert_true(int(discounted["gold"]) < int(normal["gold"]), "class talent reduces rank gold cost")
+	_assert_true(int(discounted["shards"]) < int(normal["shards"]), "class talent reduces rank shard cost")
+
+
+func _test_locked_or_equipped_items_cannot_be_salvaged(rules) -> void:
+	if not rules.has_method("can_salvage_item"):
+		push_error("IdleGameRules is missing can_salvage_item")
+		failures += 1
+		return
+	var item: Dictionary = rules.generate_equipment(1, 0)
+	_assert_true(rules.can_salvage_item(item, false), "ordinary unequipped item can be salvaged")
+	item["locked"] = true
+	_assert_false(rules.can_salvage_item(item, false), "locked item cannot be salvaged")
+	item["locked"] = false
+	_assert_false(rules.can_salvage_item(item, true), "equipped item cannot be salvaged")
+
+
+func _test_every_facility_has_a_distinct_service(rules) -> void:
+	if not rules.has_method("facility_service"):
+		_fail("IdleGameRules is missing facility_service")
+		return
+	var names: Array[String] = []
+	for building_id in rules.get_building_order():
+		var service: Dictionary = rules.facility_service(building_id, 1)
+		_assert_false(service.is_empty(), "%s has a facility service" % [building_id])
+		var service_name := String(service.get("name", ""))
+		_assert_false(service_name.is_empty(), "%s service has a name" % [building_id])
+		_assert_false(names.has(service_name), "%s service name is unique" % [building_id])
+		names.append(service_name)
+
+
+func _test_market_service_trades_supplies_for_gold(rules) -> void:
+	if not rules.has_method("facility_service"):
+		return
+	var service: Dictionary = rules.facility_service("market", 3)
+	_assert_true(int(service["cost"].get("wood", 0)) > 0, "market trade costs wood")
+	_assert_true(int(service["cost"].get("ore", 0)) > 0, "market trade costs ore")
+	_assert_true(int(service["reward"].get("gold", 0)) > 0, "market trade rewards gold")
+
+
+func _test_shrine_service_improves_with_level(rules) -> void:
+	if not rules.has_method("facility_service"):
+		return
+	var first: Dictionary = rules.facility_service("shrine", 1)
+	var fifth: Dictionary = rules.facility_service("shrine", 5)
+	_assert_true(int(fifth["reward"].get("essence", 0)) > int(first["reward"].get("essence", 0)), "higher shrine level distills more essence")
+
+
+func _test_every_resource_has_a_visual_definition(rules) -> void:
+	if not rules.has_method("resource_visual"):
+		_fail("IdleGameRules is missing resource_visual")
+		return
+	var symbols: Array[String] = []
+	for resource_name in rules.RESOURCE_ORDER:
+		var visual: Dictionary = rules.resource_visual(resource_name)
+		_assert_false(visual.is_empty(), "%s has a resource visual" % [resource_name])
+		var symbol := String(visual.get("symbol", ""))
+		_assert_false(symbol.is_empty(), "%s visual has a symbol" % [resource_name])
+		_assert_false(symbols.has(symbol), "%s visual symbol is distinct" % [resource_name])
+		_assert_true(visual.get("color", null) is Color, "%s visual has a color" % [resource_name])
+		symbols.append(symbol)
+
+
+func _test_enemy_sprite_regions_match_the_sheet_grid(rules) -> void:
+	if not rules.has_method("enemy_sprite_region"):
+		_fail("IdleGameRules is missing enemy_sprite_region")
+		return
+	_assert_equal(rules.enemy_sprite_region(1, 0), Rect2i(0, 0, 192, 192), "first enemy idle frame uses the first cell")
+	_assert_equal(rules.enemy_sprite_region(2, 1), Rect2i(192, 192, 192, 192), "second enemy attack frame uses row two column two")
+	_assert_equal(rules.enemy_sprite_region(6, 3), Rect2i(576, 0, 192, 192), "enemy families wrap while preserving animation state")
+
+
+func _test_building_sprite_regions_match_the_sheet_grid(rules) -> void:
+	if not rules.has_method("building_sprite_region"):
+		_fail("IdleGameRules is missing building_sprite_region")
+		return
+	_assert_equal(rules.building_sprite_region(0, 0), Rect2i(0, 0, 256, 192), "forge base uses the first sheet cell")
+	_assert_equal(rules.building_sprite_region(1, 1), Rect2i(256, 192, 256, 192), "workshop level one uses its column and first built row")
+	_assert_equal(rules.building_sprite_region(5, 5), Rect2i(1280, 576, 256, 192), "shrine max level uses its column and highest art row")
+
+
+func _test_enemy_animation_cycle_uses_combat_frames(rules) -> void:
+	if not rules.has_method("enemy_animation_state"):
+		_fail("IdleGameRules is missing enemy_animation_state")
+		return
+	_assert_equal(rules.enemy_animation_state(0.05, false), 1, "opening animation phase uses attack frame")
+	_assert_equal(rules.enemy_animation_state(0.48, false), 2, "middle animation phase uses hit frame")
+	_assert_equal(rules.enemy_animation_state(0.84, true), 3, "boss late phase uses skill frame")
+	_assert_equal(rules.enemy_animation_state(0.84, false), 0, "normal enemy late phase returns to idle")
+
+
+func _test_enemy_names_map_to_matching_visual_families(rules) -> void:
+	if not rules.has_method("enemy_visual_index"):
+		_fail("IdleGameRules is missing enemy_visual_index")
+		return
+	_assert_equal(rules.enemy_visual_index("Slime", "Meadow Road"), 1, "slime uses slime art")
+	_assert_equal(rules.enemy_visual_index("Wolf", "Meadow Road"), 2, "wolf uses wolf art")
+	_assert_equal(rules.enemy_visual_index("Zombie", "Grave Ruins"), 3, "zombie uses undead art")
+	_assert_equal(rules.enemy_visual_index("Dinosaur", "Ember Hollow"), 4, "dinosaur uses dinosaur art")
+	_assert_equal(rules.enemy_visual_index("Bone Knight", "Fallen Keep"), 5, "bone knight uses armored enemy art")
+	_assert_equal(rules.enemy_visual_index("Golem", "Iron Mine"), 5, "golem uses heavy enemy art")
+
+
+func _test_building_names_map_to_matching_art_columns(rules) -> void:
+	if not rules.has_method("building_visual_column"):
+		_fail("IdleGameRules is missing building_visual_column")
+		return
+	_assert_equal(rules.building_visual_column("forge"), 0, "forge uses forge art")
+	_assert_equal(rules.building_visual_column("infirmary"), 1, "infirmary uses medical art")
+	_assert_equal(rules.building_visual_column("workshop"), 2, "workshop uses workshop art")
+	_assert_equal(rules.building_visual_column("academy"), 3, "academy uses academy art")
+	_assert_equal(rules.building_visual_column("shrine"), 4, "shrine uses shrine art")
+	_assert_equal(rules.building_visual_column("market"), 5, "market uses market art")
+
+
+func _fail(message: String) -> void:
+	push_error(message)
+	failures += 1
+
+
+func _assert_equal(actual: Variant, expected: Variant, message: String) -> void:
+	if actual != expected:
+		push_error("%s: expected %s, got %s" % [message, expected, actual])
+		failures += 1
+
+
+func _assert_true(value: bool, message: String) -> void:
+	if not value:
+		push_error(message)
+		failures += 1
+
+
+func _assert_false(value: bool, message: String) -> void:
+	if value:
+		push_error(message)
+		failures += 1
