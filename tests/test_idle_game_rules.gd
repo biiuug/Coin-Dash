@@ -29,6 +29,7 @@ func _ready() -> void:
 	_test_achievement_catalog_and_completion(rules)
 	_test_combat_xp_levels_and_caps_heroes(rules)
 	_test_region_relics_are_unique_and_functional(rules)
+	_test_expanded_buildings_change_progression(rules)
 	if failures == 0:
 		print("IDLE_RULES_TEST_PASS")
 	else:
@@ -162,6 +163,7 @@ func _test_building_sprite_regions_match_the_sheet_grid(rules) -> void:
 		return
 	_assert_equal(rules.building_sprite_region(0, 0), Rect2i(0, 0, 256, 192), "forge base uses the first sheet cell")
 	_assert_equal(rules.building_sprite_region(1, 1), Rect2i(256, 192, 256, 192), "workshop level one uses its column and first built row")
+	_assert_equal(rules.building_art_level(3), 2, "middle building levels use the developed art tier")
 	_assert_equal(rules.building_sprite_region(5, 5), Rect2i(1280, 576, 256, 192), "shrine max level uses its column and highest art row")
 
 
@@ -197,6 +199,8 @@ func _test_building_names_map_to_matching_art_columns(rules) -> void:
 	_assert_equal(rules.building_visual_column("academy"), 3, "academy uses academy art")
 	_assert_equal(rules.building_visual_column("shrine"), 4, "shrine uses shrine art")
 	_assert_equal(rules.building_visual_column("market"), 5, "market uses market art")
+	_assert_equal(rules.building_visual_column("barracks"), 6, "barracks uses expansion art")
+	_assert_equal(rules.building_visual_column("observatory"), 7, "observatory uses expansion art")
 
 
 func _test_campaign_has_authored_late_game_regions(rules) -> void:
@@ -293,6 +297,21 @@ func _test_region_relics_are_unique_and_functional(rules) -> void:
 	var compass_relics: Array[String] = ["wayfarer_compass"]
 	var compass: Dictionary = rules.wave_rewards(10, 1, {"market": 1}, no_relics, compass_relics)
 	_assert_true(int(compass["wood"]) > int(ordinary["wood"]), "compass increases region materials")
+
+
+func _test_expanded_buildings_change_progression(rules) -> void:
+	_assert_equal(rules.get_building_order().size(), 8, "camp has eight distinct facilities")
+	var no_talents: Array[String] = []
+	var no_relics: Array[String] = []
+	var hero: Dictionary = rules.create_hero(rules.HEROES[0])
+	var basic: Dictionary = rules.hero_stats(hero, [], {"infirmary": 1, "barracks": 1}, no_talents, no_relics)
+	var trained: Dictionary = rules.hero_stats(hero, [], {"infirmary": 1, "barracks": 5}, no_talents, no_relics)
+	_assert_true(int(trained["atk"]) > int(basic["atk"]), "higher barracks level increases hero attack")
+	var basic_rarity: int = rules.equipment_rarity_bonus({"observatory": 1}, no_talents, no_relics)
+	var scouted_rarity: int = rules.equipment_rarity_bonus({"observatory": 5}, no_talents, no_relics)
+	_assert_true(scouted_rarity > basic_rarity, "higher observatory level improves equipment rarity")
+	_assert_equal(rules.facility_service("barracks", 1)["id"], "drill", "barracks offers team drills")
+	_assert_equal(rules.facility_service("observatory", 1)["id"], "scout", "observatory offers scout caches")
 
 
 func _fail(message: String) -> void:

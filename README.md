@@ -15,8 +15,8 @@ A Godot 4 desktop idle auto-fighter. Heroes fight automatically, earn resources 
 - Bulk junk salvage for unlocked, unequipped Common and Uncommon equipment.
 - Optional auto-junk conversion for newly dropped Common and Uncommon gear.
 - Distinct pixel-art visuals for all nine resources, buildings, enemy families, hero portraits, equipment slots, talents, and stage regions.
-- Six camp buildings: Forge, Workshop, Academy, Infirmary, Market, and Shrine.
-- Six distinct camp services for crafting, junk sorting, hero training, team recovery, supply trading, and essence distilling.
+- Eight camp buildings: Forge, Workshop, Academy, Infirmary, Market, Shrine, Barracks, and Observatory.
+- Eight distinct camp services for crafting, junk sorting, hero training, team recovery, supply trading, essence distilling, team drills, and scout caches.
 - Camp screen with visible resource-icon service and upgrade costs plus an affordable upgrade-all action.
 - Expanded talent branches for combat, economy, loot, automation, and class growth, including boss damage, salvage yield, essence gain, and team sustain bonuses.
 - Stage list showing all 120 fights, regional sets, material sources, and item level ranges so higher fights drop better loot.

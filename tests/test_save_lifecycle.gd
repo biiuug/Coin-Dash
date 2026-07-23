@@ -88,11 +88,12 @@ func _test_automatic_load(game) -> void:
 func _test_exit_save() -> void:
 	var file := FileAccess.open(_save_file_path(), FileAccess.READ)
 	var data: Dictionary = JSON.parse_string(file.get_as_text())
-	_assert_equal(data["materials"]["gold"], 99999, "exit saves changed resources")
+	_assert_equal(data["materials"]["gold"], 100499, "exit save includes newly earned achievement reward")
 	_assert_equal(data["heroes"][0]["level"], 12, "exit saves changed hero level")
 	_assert_false(data.has("current_wave"), "exit save omits current wave")
 	_assert_false(data.has("enemy_hp"), "exit save omits enemy health")
 	_assert_false(data["heroes"][0].has("hp"), "exit save omits hero health")
+	_assert_equal(data["unlocked_achievements"].has("growing_camp"), true, "migration claims newly satisfied camp achievement")
 
 
 func _assert_equal(actual: Variant, expected: Variant, message: String) -> void:

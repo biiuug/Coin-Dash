@@ -186,6 +186,30 @@ const BUILDINGS := {
 			{"wood": 132, "herbs": 136, "ink": 210, "essence": 24, "gold": 2300},
 		],
 	},
+	"barracks": {
+		"name": "Barracks",
+		"column": 6,
+		"text": "Team drills, combat XP, and attack training.",
+		"unlocks": ["Team drills", "Attack aura", "Veteran bunks", "Elite drills", "Champion hall"],
+		"costs": [
+			{"wood": 28, "ore": 12, "gold": 180},
+			{"wood": 64, "ore": 34, "herbs": 18, "gold": 480},
+			{"wood": 126, "ore": 76, "shards": 10, "gold": 1120},
+			{"wood": 230, "ore": 142, "shards": 24, "fragments": 8, "gold": 2500},
+		],
+	},
+	"observatory": {
+		"name": "Observatory",
+		"column": 7,
+		"text": "Scouting, equipment rarity, and stage caches.",
+		"unlocks": ["Scout cache", "Loot forecast", "Rare signals", "Deep survey", "Astral chart"],
+		"costs": [
+			{"wood": 22, "ink": 24, "gold": 190},
+			{"wood": 52, "ink": 58, "dust": 16, "gold": 520},
+			{"wood": 110, "ink": 120, "essence": 8, "gold": 1200},
+			{"wood": 200, "ink": 220, "essence": 20, "fragments": 10, "gold": 2700},
+		],
+	},
 }
 
 const TALENTS := [
@@ -216,7 +240,7 @@ const ACHIEVEMENTS := [
 	{"id": "well_equipped", "name": "Well Equipped", "text": "Own 25 pieces of equipment.", "metric": "inventory", "target": 25, "reward": {"ore": 120, "dust": 30}},
 	{"id": "quartermaster", "name": "Quartermaster", "text": "Own 75 pieces of equipment.", "metric": "inventory", "target": 75, "reward": {"ore": 300, "fragments": 10}},
 	{"id": "growing_camp", "name": "Growing Camp", "text": "Reach 12 total building levels.", "metric": "building_levels", "target": 12, "reward": {"wood": 160, "gold": 500}},
-	{"id": "master_builder", "name": "Master Builder", "text": "Max every camp building.", "metric": "building_levels", "target": 30, "reward": {"fragments": 18, "essence": 12}},
+	{"id": "master_builder", "name": "Master Builder", "text": "Max every camp building.", "metric": "building_levels", "target": 40, "reward": {"fragments": 18, "essence": 12}},
 	{"id": "student", "name": "Shrine Student", "text": "Unlock 5 talents.", "metric": "talents", "target": 5, "reward": {"essence": 8}},
 	{"id": "sage", "name": "Shrine Sage", "text": "Unlock every talent.", "metric": "talents", "target": 15, "reward": {"shards": 24, "essence": 20}},
 	{"id": "seasoned", "name": "Seasoned Hero", "text": "Raise a hero to level 20.", "metric": "hero_level", "target": 20, "reward": {"gold": 1600, "herbs": 120}},
@@ -272,11 +296,21 @@ func enemy_sprite_region(enemy_index: int, state: int) -> Rect2i:
 
 
 func building_sprite_region(building_index: int, level: int) -> Rect2i:
-	return Rect2i(clampi(building_index, 0, 5) * 256, clampi(level, 0, 3) * 192, 256, 192)
+	return Rect2i(clampi(building_index, 0, 5) * 256, building_art_level(level) * 192, 256, 192)
+
+
+func building_art_level(level: int) -> int:
+	if level <= 0:
+		return 0
+	if level == 1:
+		return 1
+	if level <= 3:
+		return 2
+	return 3
 
 
 func building_visual_column(building_id: String) -> int:
-	var columns := {"forge": 0, "infirmary": 1, "workshop": 2, "academy": 3, "shrine": 4, "market": 5}
+	var columns := {"forge": 0, "infirmary": 1, "workshop": 2, "academy": 3, "shrine": 4, "market": 5, "barracks": 6, "observatory": 7}
 	return int(columns.get(building_id, 0))
 
 
@@ -336,7 +370,7 @@ func get_class_data(class_id: String) -> Dictionary:
 
 
 func get_building_order() -> Array[String]:
-	return ["forge", "workshop", "academy", "infirmary", "market", "shrine"]
+	return ["forge", "workshop", "academy", "infirmary", "market", "shrine", "barracks", "observatory"]
 
 
 func get_building(building_id: String) -> Dictionary:
@@ -401,6 +435,22 @@ func facility_service(building_id: String, current_level: int) -> Dictionary:
 				"description": "Convert camp supplies into talent essence.",
 				"cost": {"gold": 50 + level * 25, "herbs": 6 + level * 2, "ink": 5 + level * 2},
 				"reward": {"essence": 1 + int((level - 1) / 2)},
+			}
+		"barracks":
+			return {
+				"id": "drill",
+				"name": "Drill Team",
+				"description": "Grant combat XP to every active hero.",
+				"cost": {"gold": 90 + level * 55, "herbs": 4 + level * 2},
+				"reward": {},
+			}
+		"observatory":
+			return {
+				"id": "scout",
+				"name": "Scout Cache",
+				"description": "Recover one high-quality item near the current stage.",
+				"cost": {"gold": 100 + level * 60, "ink": 5 + level * 3},
+				"reward": {},
 			}
 	return {}
 
@@ -498,6 +548,8 @@ func hero_stats(hero: Dictionary, inventory: Array, buildings: Dictionary, unloc
 	stats["skill_power"] = float(stats["skill_power"]) * (1.0 + relic_effect_total("skill_pct", owned_relics))
 	var infirmary_level: int = int(buildings.get("infirmary", 1))
 	stats["hp"] += infirmary_level * 18
+	var barracks_level: int = int(buildings.get("barracks", 1))
+	stats["atk"] = int(float(stats["atk"]) * (1.0 + barracks_level * 0.025))
 	for slot in SLOTS:
 		var item_index: int = int(hero["equipment"].get(slot, -1))
 		if item_index >= 0 and item_index < inventory.size():
@@ -588,6 +640,10 @@ func class_rank_cost(hero: Dictionary, class_discount: bool) -> Dictionary:
 func equipment_upgrade_cost(item: Dictionary) -> Dictionary:
 	var level: int = int(item["level"])
 	return {"ore": 8 + level * 3, "dust": 2 + int(level / 2), "gold": 35 + level * 18}
+
+
+func equipment_rarity_bonus(buildings: Dictionary, talents: Array[String], owned_relics: Array[String]) -> int:
+	return int(buildings.get("observatory", 1)) * 3 + (12 if talents.has("rare_find") else 0) + int(relic_effect_total("rarity_bonus", owned_relics))
 
 
 func generate_equipment(stage_index: int, roll_index: int, rarity_bonus: int = 0) -> Dictionary:

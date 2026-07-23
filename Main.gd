@@ -82,6 +82,7 @@ var relic_icon_cache: Dictionary = {}
 var hero_texture: Texture2D
 var enemy_texture: Texture2D
 var building_texture: Texture2D
+var building_expansion_texture: Texture2D
 var class_sheet_texture: Texture2D
 var resource_texture: Texture2D
 var equipment_texture: Texture2D
@@ -138,6 +139,7 @@ func _load_assets() -> void:
 	hero_texture = _load_png_texture("res://assets/characters/warden-sprite-sheet.png")
 	enemy_texture = _load_png_texture("res://assets/enemies/enemy-sprites.png")
 	building_texture = _load_png_texture("res://assets/buildings/camp-buildings-v4.png")
+	building_expansion_texture = _load_png_texture("res://assets/buildings/camp-buildings-expansion-v1.png")
 	class_sheet_texture = _load_png_texture("res://assets/characters/class-sheets-v1.png")
 	resource_texture = _load_png_texture("res://assets/resources/resource-icons-v2.png")
 	equipment_texture = _load_png_texture("res://assets/equipment/equipment-icons-v1.png")
@@ -724,12 +726,21 @@ func _build_buildings_tab() -> void:
 	upgrade_all.tooltip_text = "Upgrade every facility that currently has enough resources."
 	upgrade_all.pressed.connect(_on_upgrade_all_buildings)
 	content.add_child(upgrade_all)
+	var building_scroll := ScrollContainer.new()
+	building_scroll.position = Vector2(0, 42)
+	building_scroll.size = Vector2(1072, 458)
+	building_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	content.add_child(building_scroll)
+	var rows := int(ceil(float(order.size()) / 3.0))
+	var building_canvas := Control.new()
+	building_canvas.custom_minimum_size = Vector2(1054, rows * 228)
+	building_scroll.add_child(building_canvas)
 	for index in range(order.size()):
 		var building_id := order[index]
 		var col := index % 3
 		var row := int(index / 3)
-		var building_panel := _panel(Vector2(col * 356, 42 + row * 228), Vector2(340, 220))
-		content.add_child(building_panel)
+		var building_panel := _panel(Vector2(col * 356, row * 228), Vector2(340, 220))
+		building_canvas.add_child(building_panel)
 		var building: Dictionary = rules.get_building(building_id)
 		var level: int = int(buildings.get(building_id, 1))
 		var title := _make_label("%s  Lv.%d" % [String(building["name"]), level], 18, TEXT_MAIN, HORIZONTAL_ALIGNMENT_LEFT)
@@ -1025,7 +1036,7 @@ func _complete_wave() -> void:
 	var boss_wave: bool = current_wave >= int(stage["wave_count"])
 	item_roll_counter += 1
 	if rules.should_drop_equipment(stage_index, current_wave, item_roll_counter):
-		var rarity_bonus: int = (12 if unlocked_talents.has("rare_find") else 0) + int(rules.relic_effect_total("rarity_bonus", owned_relics))
+		var rarity_bonus: int = rules.equipment_rarity_bonus(buildings, unlocked_talents, owned_relics)
 		var item: Dictionary = rules.generate_equipment(stage_index, item_roll_counter, rarity_bonus)
 		if auto_salvage_junk and _is_low_rarity_item(item):
 			var salvage: Dictionary = rules.salvage_value(item, unlocked_talents, owned_relics)
@@ -1507,23 +1518,50 @@ func _on_facility_service(building_id: String) -> void:
 	if service_id == "salvage":
 		_on_salvage_junk()
 		return
+	if service_id == "train" and selected_hero >= 0 and selected_hero < heroes.size() and int(heroes[selected_hero]["level"]) >= rules.MAX_HERO_LEVEL:
+		_spawn_float("Max level", ACCENT)
+		return
 	rules.spend(cost, materials)
 	match service_id:
 		"craft":
 			item_roll_counter += 1
 			var craft_stage: int = maxi(1, stage_index + level - 1)
 			var item: Dictionary = rules.generate_equipment(craft_stage, item_roll_counter, level * 6)
-			inventory.append(item)
-			selected_item = inventory.size() - 1
-			_add_log("Forge crafted %s Lv.%d." % [String(item["name"]), int(item["level"])])
-			_spawn_float("Gear crafted", GOOD)
+			if inventory.size() >= rules.INVENTORY_CAP:
+				_add_materials(rules.salvage_value(item, unlocked_talents, owned_relics))
+				_add_log("Forge output salvaged: pack full.")
+				_spawn_float("Pack full", BAD)
+			else:
+				inventory.append(item)
+				selected_item = inventory.size() - 1
+				_add_log("Forge crafted %s Lv.%d." % [String(item["name"]), int(item["level"])])
+				_spawn_float("Gear crafted", GOOD)
 		"train":
 			if selected_hero >= 0 and selected_hero < heroes.size():
 				var hero: Dictionary = heroes[selected_hero]
-				hero["level"] = int(hero["level"]) + 1
+				hero["level"] = mini(rules.MAX_HERO_LEVEL, int(hero["level"]) + 1)
 				_refresh_hero_health(false)
 				_add_log("Academy trained %s to level %d." % [String(hero["name"]), int(hero["level"])])
 				_spawn_float("Hero trained", BLUE)
+		"drill":
+			var total_levels := 0
+			for hero in _active_heroes():
+				total_levels += rules.grant_hero_xp(hero, 45 + level * 35)
+			_refresh_hero_health(false)
+			_add_log("Barracks drilled the active team%s." % [" (+%d levels)" % [total_levels] if total_levels > 0 else ""])
+			_spawn_float("Team drill", GOOD)
+		"scout":
+			item_roll_counter += 1
+			var scout_stage := mini(rules.MAX_STAGE, maxi(1, stage_index + level))
+			var scouted_item: Dictionary = rules.generate_equipment(scout_stage, item_roll_counter, 18 + level * 10)
+			if inventory.size() >= rules.INVENTORY_CAP:
+				_add_materials(rules.salvage_value(scouted_item, unlocked_talents, owned_relics))
+				_add_log("Scout cache salvaged: pack full.")
+			else:
+				inventory.append(scouted_item)
+				selected_item = inventory.size() - 1
+				_add_log("Scout cache: %s Lv.%d." % [String(scouted_item["name"]), int(scouted_item["level"])])
+			_spawn_float("Cache recovered", BLUE)
 		"restore":
 			_refresh_hero_health(true)
 			_add_log("Infirmary restored the team.")
@@ -2456,6 +2494,14 @@ func _enemy_atlas(index: int, state: int = 0) -> Texture2D:
 
 
 func _building_atlas(index: int, level: int) -> Texture2D:
+	if index >= 6:
+		if building_expansion_texture == null:
+			return null
+		var expansion := AtlasTexture.new()
+		expansion.atlas = building_expansion_texture
+		var expansion_frame := (index - 6) * 4 + rules.building_art_level(level)
+		expansion.region = Rect2(expansion_frame * 256, 0, 256, 192)
+		return expansion
 	if building_texture == null:
 		return null
 	var atlas := AtlasTexture.new()
