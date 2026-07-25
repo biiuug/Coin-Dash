@@ -137,7 +137,7 @@ func _process(delta: float) -> void:
 
 func _load_assets() -> void:
 	hero_texture = _load_png_texture("res://assets/characters/warden-sprite-sheet.png")
-	enemy_texture = _load_png_texture("res://assets/enemies/enemy-sprites.png")
+	enemy_texture = _load_png_texture("res://assets/enemies/enemy-sprites-v2.png")
 	building_texture = _load_png_texture("res://assets/buildings/camp-buildings-v4.png")
 	building_expansion_texture = _load_png_texture("res://assets/buildings/camp-buildings-expansion-v1.png")
 	class_sheet_texture = _load_png_texture("res://assets/characters/class-sheets-v1.png")
@@ -509,6 +509,15 @@ func _build_heroes_tab() -> void:
 	var details := _panel(Vector2(274, 0), Vector2(798, 500))
 	content.add_child(details)
 
+	var hero_scroll := ScrollContainer.new()
+	hero_scroll.position = Vector2(6, 8)
+	hero_scroll.size = Vector2(248, 484)
+	hero_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	list.add_child(hero_scroll)
+	var hero_list := Control.new()
+	hero_list.custom_minimum_size = Vector2(230, heroes.size() * 44 + 16)
+	hero_scroll.add_child(hero_list)
+
 	var y := 16
 	for index in range(heroes.size()):
 		var hero: Dictionary = heroes[index]
@@ -519,11 +528,11 @@ func _build_heroes_tab() -> void:
 		portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		portrait.texture = _hero_portrait_texture(hero)
 		portrait.tooltip_text = _hero_tooltip(hero, rules.hero_stats(hero, inventory, buildings, unlocked_talents, owned_relics))
-		list.add_child(portrait)
+		hero_list.add_child(portrait)
 		var button := _make_button("%s  Lv.%d" % [String(hero["name"]), int(hero["level"])], Vector2(188, 36), selected_hero == index)
 		button.position = Vector2(56, y)
 		button.pressed.connect(_on_hero_selected.bind(index))
-		list.add_child(button)
+		hero_list.add_child(button)
 		y += 44
 
 	var selected: Dictionary = heroes[selected_hero]
@@ -1791,9 +1800,21 @@ func _save_file_path() -> String:
 
 
 func _repair_loaded_state() -> void:
-	if heroes.is_empty():
-		for hero_def in rules.HEROES:
-			heroes.append(rules.create_hero(hero_def))
+	var loaded_by_id: Dictionary = {}
+	for loaded_hero in heroes:
+		if typeof(loaded_hero) != TYPE_DICTIONARY:
+			continue
+		var loaded_id := String((loaded_hero as Dictionary).get("id", ""))
+		if not loaded_id.is_empty():
+			loaded_by_id[loaded_id] = loaded_hero
+	var migrated_heroes: Array = []
+	for hero_def in rules.HEROES:
+		var default_hero: Dictionary = rules.create_hero(hero_def)
+		var hero_id := String(default_hero["id"])
+		if loaded_by_id.has(hero_id):
+			default_hero = _merge_default_dictionary(default_hero, loaded_by_id[hero_id])
+		migrated_heroes.append(default_hero)
+	heroes = migrated_heroes
 	for hero in heroes:
 		if not hero.has("equipment"):
 			hero["equipment"] = {"weapon": -1, "armor": -1, "trinket": -1}

@@ -8,6 +8,7 @@ var failures := 0
 func _ready() -> void:
 	var rules := IdleGameRules.new()
 	_test_stage_loot_scales(rules)
+	_test_roster_exposes_ten_unique_classes(rules)
 	_test_team_slots_follow_academy_level(rules)
 	_test_class_discount_reduces_rank_cost(rules)
 	_test_locked_or_equipped_items_cannot_be_salvaged(rules)
@@ -45,6 +46,17 @@ func _test_stage_loot_scales(rules) -> void:
 	var item: Dictionary = rules.generate_equipment(21, 4)
 	_assert_true(int(item["level"]) >= int(late["item_min"]), "generated item respects stage minimum")
 	_assert_true(int(item["level"]) <= int(late["item_max"]), "generated item respects stage maximum")
+
+
+func _test_roster_exposes_ten_unique_classes(rules) -> void:
+	_assert_equal(rules.HEROES.size(), 10, "roster contains ten heroes")
+	var classes: Array[String] = []
+	for hero in rules.HEROES:
+		var class_id := String(hero["class_id"])
+		_assert_false(classes.has(class_id), "%s is represented by one roster hero" % [class_id])
+		_assert_false(rules.get_class_data(class_id).is_empty(), "%s has a class definition" % [class_id])
+		classes.append(class_id)
+	_assert_equal(classes.size(), rules.CLASSES.size(), "every class is represented in the roster")
 
 
 func _test_team_slots_follow_academy_level(rules) -> void:

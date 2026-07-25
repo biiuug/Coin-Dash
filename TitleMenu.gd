@@ -31,7 +31,10 @@ func _build_title_screen() -> void:
 		background.add_child(post)
 
 	var character := TextureRect.new()
-	character.texture = load("res://assets/characters/warden-pixel-sample.png")
+	var character_atlas := AtlasTexture.new()
+	character_atlas.atlas = load("res://assets/characters/warden-pixel-sample.png")
+	character_atlas.region = Rect2(0, 0, 64, 96)
+	character.texture = character_atlas
 	character.position = Vector2(100, 110)
 	character.size = Vector2(330, 330)
 	character.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
